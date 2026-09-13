@@ -1,0 +1,50 @@
+services:
+  mtg-card-manager-api:
+    container_name: mtg-card-manager-api
+    image: mtg-card-manager-api:local
+    build: .
+    environment:
+      MONGODB_URI: mongodb://mtg-card-manager-db:27017
+      MONGODB_DATABASE: card_manager
+    ports:
+      - "8000:8000"
+    depends_on:
+      mtg-card-manager-db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  mtg-card-manager-db:
+    container_name: mtg-card-manager-db
+    image: mongo:7
+    volumes:
+      - mtg-card-manager-db-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 }).ok"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  mtg-card-manager-sync:
+    container_name: mtg-card-manager-sync
+    image: mtg-card-manager-sync:local
+    build: .
+    command: ["python", "sync_scryfall.py"]
+    environment:
+      MONGODB_URI: mongodb://mtg-card-manager-db:27017
+      MONGODB_DATABASE: card_manager
+      SCRYFALL_BULK_METADATA_URL: "${SCRYFALL_BULK_METADATA_URL:-https://api.scryfall.com/bulk-data/oracle-cards}"
+      SCRYFALL_USER_AGENT: "${SCRYFALL_USER_AGENT:-mtg-card-manager/0.1 (bulk catalog synchronizer)}"
+      SYNC_BATCH_SIZE: "${SYNC_BATCH_SIZE:-1000}"
+    depends_on:
+      mtg-card-manager-db:
+        condition: service_healthy
+    profiles: ["sync"]
+
+volumes:
+  mtg-card-manager-db-data:
+    name: mtg-card-manager-db-data
+
+networks:
+  default:
+    name: mtg-card-manager-network
