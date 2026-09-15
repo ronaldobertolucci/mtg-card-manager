@@ -8,6 +8,18 @@ class CardSearchService:
     def __init__(self, repository: CardRepository) -> None:
         self._repository = repository
 
+    async def get_by_oracle_id(self, oracle_id: str, lang: str) -> CardResponse | None:
+        card = await self._repository.get_by_oracle_id(oracle_id)
+        if card is None:
+            return None
+        if lang != "en":
+            translations = await self._repository.get_translations([oracle_id], lang)
+            translation = translations.get(oracle_id)
+            if translation is None:
+                return None
+            card = self._merge_translation(card, translation)
+        return self._serialize(card, lang)
+
     async def search(self, params: SearchParams) -> list[CardResponse]:
         translated_oracle_ids: list[str] | None = None
         if params.lang != "en":

@@ -298,6 +298,30 @@ Possíveis respostas:
 | `400 Bad Request` | Filtros ausentes, inválidos ou conflitantes. |
 | `404 Not Found` | Nenhuma carta ou tradução correspondente. |
 
+### Consultar carta pelo oracle_id
+
+```http
+GET /cards/{oracle_id}
+```
+
+Retorna um único objeto de carta, com os mesmos campos da busca. O `oracle_id`
+é a identidade estável da carta, não o `id` de uma impressão. Aceita letras,
+números e hífens, com até 100 caracteres.
+
+O parâmetro opcional `lang` tem padrão `pt-BR`. Use `lang=en` para consultar
+os dados oficiais em inglês. Para outros idiomas, é necessário existir uma
+tradução; não há fallback para inglês.
+
+```bash
+curl 'http://localhost:8000/cards/oracle-id-estavel?lang=en'
+```
+
+| Status | Motivo |
+| --- | --- |
+| `200 OK` | Carta encontrada no idioma solicitado. |
+| `404 Not Found` | Carta ou tradução não encontrada. |
+| `422 Unprocessable Entity` | `oracle_id` ou idioma inválido. |
+
 ## CRUD de traduções
 
 Traduções em inglês não podem ser cadastradas porque `oracle_cards` já contém o texto

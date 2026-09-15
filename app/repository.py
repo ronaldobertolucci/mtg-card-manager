@@ -10,6 +10,8 @@ Document = dict[str, Any]
 
 
 class CardRepository(Protocol):
+    async def get_by_oracle_id(self, oracle_id: str) -> Document | None: ...
+
     async def search_translation_oracle_ids(self, params: SearchParams) -> list[str]: ...
 
     async def search_oracle_cards(
@@ -66,6 +68,9 @@ class MongoCardRepository:
     def __init__(self, database: AsyncIOMotorDatabase) -> None:
         self._oracle_cards = database.oracle_cards
         self._translations = database.translations
+
+    async def get_by_oracle_id(self, oracle_id: str) -> Document | None:
+        return await self._oracle_cards.find_one({"oracle_id": oracle_id})
 
     async def search_translation_oracle_ids(self, params: SearchParams) -> list[str]:
         query = {"lang": params.lang, **_text_filter(params)}

@@ -1,8 +1,23 @@
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
+
 import pytest
 from pydantic import ValidationError
 
-from app.repository import _attribute_filter, _oracle_card_filter, _text_filter
+from app.repository import MongoCardRepository, _attribute_filter, _oracle_card_filter, _text_filter
 from app.schemas import SearchParams
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("card", [None, {"id": "printing-1", "oracle_id": "oracle-1"}])
+async def test_get_by_oracle_id_uses_stable_identity(card) -> None:
+    collection = AsyncMock()
+    collection.find_one.return_value = card
+    repository = MongoCardRepository(
+        SimpleNamespace(oracle_cards=collection, translations=AsyncMock())
+    )
+    assert await repository.get_by_oracle_id("oracle-1") == card
+    collection.find_one.assert_awaited_once_with({"oracle_id": "oracle-1"})
 
 
 def test_text_filter_escapes_regex_metacharacters() -> None:
