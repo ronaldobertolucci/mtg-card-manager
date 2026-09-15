@@ -9,15 +9,15 @@ from app.service import CardSearchService
 
 class StubRepository:
     def __init__(self) -> None:
-        self.received_ids: Sequence[str] | None = None
+        self.received_ids: Mapping[str, list[int] | None] | None = None
         self.translation_searches = 0
 
-    async def search_translation_oracle_ids(self, params: SearchParams) -> list[str]:
+    async def search_translation_matches(self, params: SearchParams) -> dict[str, list[int] | None]:
         self.translation_searches += 1
-        return ["oracle-1"]
+        return {"oracle-1": None}
 
     async def search_oracle_cards(
-        self, params: SearchParams, oracle_ids: Sequence[str] | None = None
+        self, params: SearchParams, oracle_ids: Mapping[str, list[int] | None] | None = None
     ) -> list[dict[str, Any]]:
         self.received_ids = oracle_ids
         return [
@@ -55,7 +55,7 @@ async def test_non_english_text_search_uses_two_steps_and_merges_translation() -
 
     result = await service.search(SearchParams(lang="pt-BR", name="raio"))
 
-    assert repository.received_ids == ["oracle-1"]
+    assert repository.received_ids == {"oracle-1": None}
     assert result[0].id == "card-1"
     assert result[0].oracle_id == "oracle-1"
     assert result[0].name == "Raio"
@@ -84,14 +84,14 @@ async def test_non_english_attribute_search_requires_translation() -> None:
     result = await service.search(SearchParams(lang="pt-BR", colors="R"))
 
     assert repository.translation_searches == 1
-    assert repository.received_ids == ["oracle-1"]
+    assert repository.received_ids == {"oracle-1": None}
     assert result[0].name == "Raio"
 
 
 class NoTranslationRepository(StubRepository):
-    async def search_translation_oracle_ids(self, params: SearchParams) -> list[str]:
+    async def search_translation_matches(self, params: SearchParams) -> dict[str, list[int] | None]:
         self.translation_searches += 1
-        return []
+        return {}
 
 
 @pytest.mark.asyncio

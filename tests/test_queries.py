@@ -33,12 +33,16 @@ def test_cmc_range_query() -> None:
 def test_localized_card_query_uses_scryfall_oracle_id_not_printing_id() -> None:
     query = _oracle_card_filter(
         SearchParams(lang="pt-BR", colors="U"),
-        ["oracle-1", "oracle-2"],
+        {"oracle-1": None, "oracle-2": None},
     )
 
     assert query == {
-        "colors": ["U"],
-        "oracle_id": {"$in": ["oracle-1", "oracle-2"]},
+        "$or": [
+            {
+                "oracle_id": {"$in": ["oracle-1", "oracle-2"]},
+                "$or": [{"colors": ["U"]}, {"card_faces": {"$elemMatch": {"colors": ["U"]}}}],
+            }
+        ]
     }
 
 

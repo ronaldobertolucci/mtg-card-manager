@@ -1,4 +1,4 @@
-from app.repository import CardRepository, Document
+from app.repository import CardRepository, Document, TranslationMatches
 from app.schemas import CardResponse, SearchParams
 
 TRANSLATABLE_FIELDS = ("name", "oracle_text", "type_line", "flavor_text")
@@ -23,9 +23,9 @@ class CardSearchService:
         return self._serialize(card, lang)
 
     async def search(self, params: SearchParams) -> list[CardResponse]:
-        translated_oracle_ids: list[str] | None = None
+        translated_oracle_ids: TranslationMatches | None = None
         if params.lang != "en":
-            translated_oracle_ids = await self._repository.search_translation_oracle_ids(params)
+            translated_oracle_ids = await self._repository.search_translation_matches(params)
             if not translated_oracle_ids:
                 return []
 

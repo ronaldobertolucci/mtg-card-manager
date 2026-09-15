@@ -233,8 +233,8 @@ Regras importantes:
 
 ### Busca em inglês
 
-Quando `lang=en`, filtros textuais e mecânicos são aplicados diretamente em
-`oracle_cards`:
+Quando `lang=en`, filtros textuais e mecânicos são aplicados em `oracle_cards`,
+considerando os campos principais e as faces:
 
 ```bash
 curl 'http://localhost:8000/cards/search?lang=en&name=Lightning%20Bolt'
@@ -253,9 +253,11 @@ curl 'http://localhost:8000/cards/search?lang=en&colors=R&mana_cost=%7BR%7D&cmc=
 Quando `lang` é diferente de `en`, a API exige uma tradução no idioma solicitado:
 
 1. Localiza os `oracle_id` disponíveis em `translations`.
-2. Aplica filtros textuais sobre a tradução, quando informados.
+2. Aplica filtros textuais sobre a tradução, quando informados, registrando os
+   índices das faces correspondentes.
 3. Busca os dados mecânicos correspondentes em `oracle_cards`.
-4. Aplica os filtros mecânicos.
+4. Aplica os filtros mecânicos nas mesmas faces identificadas pelo `face_index`.
+   Sem filtros textuais por face, consulta os atributos principais ou uma mesma face.
 5. Sobrescreve os campos textuais com a tradução.
 
 Não há fallback silencioso para inglês. Se nenhuma tradução corresponder, a API retorna
@@ -267,6 +269,28 @@ curl 'http://localhost:8000/cards/search?lang=pt-BR&name=Raio'
 
 ```bash
 curl 'http://localhost:8000/cards/search?lang=pt-BR&colors=R&cmc=1&limit=5'
+```
+
+### Busca por faces
+
+- `name` consulta o nome principal, que contém os nomes unidos por ` // `.
+  Não restringe qual face deve atender aos demais filtros.
+- `cmc`, `cmc_gte` e `cmc_lte` consultam somente o valor principal da carta;
+  não calculam valores individuais a partir dos custos das faces.
+- `oracle_text`, `type_line`, `mana_cost`, `colors`, `power` e `toughness`
+  devem corresponder juntos aos campos principais ou a uma mesma face.
+- Texto continua usando correspondência parcial literal, sem distinguir maiúsculas.
+  Custo, poder e resistência usam igualdade exata; cores exigem o mesmo array e ordem.
+- Em traduções, o texto e os atributos mecânicos devem corresponder ao mesmo
+  `face_index`, independentemente da ordem das faces no documento da tradução.
+- Por exemplo, `type_line=Land&power=2` não combina o tipo de uma face com o
+  poder de outra. `oracle_text=Voar&power=4` exige poder 4 na face com esse texto.
+- Os filtros são aplicados antes de `offset` e `limit`. Cada carta aparece uma
+  única vez, mesmo quando várias faces correspondem; a resposta inclui todas as faces.
+
+```bash
+curl 'http://localhost:8000/cards/search?lang=en&oracle_text=Flying&power=4'
+curl 'http://localhost:8000/cards/search?lang=pt-BR&oracle_text=Voar&power=4'
 ```
 
 ### Resposta da busca
@@ -394,9 +418,8 @@ entradas em `card_faces`, os textos devem ser enviados exclusivamente por face:
   Textos opcionais não traduzidos ficam `null`, sem preenchimento com inglês.
   Uma tradução incompleta por face é considerada indisponível (`404` na consulta individual).
 
-Os filtros de busca ainda consultam somente campos principais. A pesquisa dentro
-de `card_faces` será implementada separadamente; esta mudança trata do cadastro e
-da resposta das traduções.
+As buscas também consultam `card_faces`, conforme as regras de busca por faces
+abaixo.
 
 ### Listar traduções
 
@@ -489,6 +512,14 @@ DELETE /translations/{translation_id}
 ```bash
 python -m pip install -e '.[dev]'
 pytest
+```
+
+Os testes de integração de buscas em faces exigem um MongoDB de teste. Eles
+criam bancos temporários com nomes únicos e os removem ao terminar. Sem a variável
+abaixo, esses testes são pulados:
+
+```bash
+TEST_MONGODB_URI=mongodb://localhost:27028 pytest tests/test_face_search.py -q
 ```
 
 Para executar a API sem Docker, disponibilize um MongoDB local e use:

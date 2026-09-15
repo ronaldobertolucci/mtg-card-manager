@@ -88,11 +88,11 @@ def test_get_card_validates_parameters(card_client, url) -> None:
 
 
 class EmptyRepository:
-    async def search_translation_oracle_ids(self, params: SearchParams) -> list[str]:
-        return []
+    async def search_translation_matches(self, params: SearchParams) -> dict[str, list[int] | None]:
+        return {}
 
     async def search_oracle_cards(
-        self, params: SearchParams, oracle_ids: Sequence[str] | None = None
+        self, params: SearchParams, oracle_ids: Mapping[str, list[int] | None] | None = None
     ) -> list[dict[str, Any]]:
         return []
 
