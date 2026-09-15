@@ -30,17 +30,20 @@ class TranslationConflictError(RuntimeError):
     pass
 
 
+class InvalidTranslationStructureError(ValueError):
+    pass
+
+
 class TranslationService:
     def __init__(self, repository: TranslationRepository) -> None:
         self._repository = repository
 
     async def create(self, payload: TranslationCreate) -> TranslationResponse:
-        if not await self._repository.oracle_card_exists(payload.oracle_id):
-            raise OracleCardNotFoundError(payload.oracle_id)
+        fields = await self._validate_structure(payload.model_dump(exclude_unset=True))
 
         now = datetime.now(UTC)
         document: TranslationDocument = {
-            **payload.model_dump(),
+            **fields,
             "created_at": now,
             "updated_at": now,
         }
@@ -57,9 +60,7 @@ class TranslationService:
         return self._serialize(document)
 
     async def get_by_card_language(self, oracle_id: str, lang: str) -> TranslationResponse:
-        document = await self._repository.get_by_card_language(
-            oracle_id, normalize_language(lang)
-        )
+        document = await self._repository.get_by_card_language(oracle_id, normalize_language(lang))
         if document is None:
             raise TranslationNotFoundError(f"{oracle_id}/{lang}")
         return self._serialize(document)
@@ -73,15 +74,73 @@ class TranslationService:
         documents = await self._repository.list(filters, params.limit, params.offset)
         return [self._serialize(document) for document in documents]
 
-    async def update(
-        self, translation_id: str, payload: TranslationUpdate
-    ) -> TranslationResponse:
+    async def update(self, translation_id: str, payload: TranslationUpdate) -> TranslationResponse:
         changes = payload.model_dump(exclude_unset=True)
+        parsed_id = self._parse_id(translation_id)
+        existing = await self._repository.get_by_id(parsed_id)
+        if existing is None:
+            raise TranslationNotFoundError(translation_id)
+        if "card_faces" in changes and changes["card_faces"] is None:
+            raise InvalidTranslationStructureError("card_faces cannot be null in an update")
+        # Root text is derived for multiface cards, never edited independently.
+        if existing.get("card_faces") and any(
+            field in changes for field in ("name", "oracle_text", "type_line", "flavor_text")
+        ):
+            raise InvalidTranslationStructureError("Edit card_faces for multiface translations")
+        validated = await self._validate_structure({**existing, **changes}, updating=True)
+        changes.update(
+            {
+                key: validated[key]
+                for key in ("name", "oracle_text", "type_line", "flavor_text", "card_faces")
+            }
+        )
         changes["updated_at"] = datetime.now(UTC)
-        document = await self._repository.update(self._parse_id(translation_id), changes)
+        document = await self._repository.update(parsed_id, changes)
         if document is None:
             raise TranslationNotFoundError(translation_id)
         return self._serialize(document)
+
+    async def _validate_structure(
+        self, document: TranslationDocument, updating: bool = False
+    ) -> TranslationDocument:
+        card = await self._repository.get_oracle_card(document["oracle_id"])
+        if card is None:
+            raise OracleCardNotFoundError(document["oracle_id"])
+        original_faces = card.get("card_faces") or []
+        faces = document.get("card_faces")
+        text_fields = ("name", "oracle_text", "type_line", "flavor_text")
+        if len(original_faces) >= 2:
+            if not faces:
+                raise InvalidTranslationStructureError("All card faces must be translated")
+            indices = [face["face_index"] for face in faces]
+            if sorted(indices) != list(range(len(original_faces))):
+                raise InvalidTranslationStructureError(
+                    "Face indices must cover every original face exactly once"
+                )
+            if not updating and any(field in document for field in text_fields):
+                raise InvalidTranslationStructureError(
+                    "Provide text inside card_faces for multiface translations"
+                )
+            faces = sorted(faces, key=lambda face: face["face_index"])
+            return {
+                **document,
+                "card_faces": faces,
+                "name": " // ".join(face["name"] for face in faces),
+                "oracle_text": None,
+                "type_line": None,
+                "flavor_text": None,
+            }
+        if "card_faces" in document and (not updating or faces is not None):
+            raise InvalidTranslationStructureError("Single-face cards cannot have card_faces")
+        if not document.get("name"):
+            raise InvalidTranslationStructureError("Single-face cards require a translated name")
+        return {
+            "oracle_text": None,
+            "type_line": None,
+            "flavor_text": None,
+            "card_faces": None,
+            **document,
+        }
 
     async def delete(self, translation_id: str) -> None:
         deleted = await self._repository.delete(self._parse_id(translation_id))
@@ -100,4 +159,3 @@ class TranslationService:
         payload = dict(document)
         payload["id"] = str(payload.pop("_id"))
         return TranslationResponse.model_validate(payload)
-

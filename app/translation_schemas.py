@@ -10,15 +10,27 @@ def normalize_language(value: str) -> str:
     return parts[0].lower() if len(parts) == 1 else f"{parts[0].lower()}-{parts[1].upper()}"
 
 
-class TranslationCreate(BaseModel):
-    oracle_id: str = Field(min_length=1, max_length=100, pattern=r"^[A-Za-z0-9-]+$")
-    lang: str = Field(min_length=2, max_length=16, pattern=LANGUAGE_PATTERN)
+class TranslationFace(BaseModel):
+    face_index: int = Field(ge=0, strict=True)
     name: str = Field(min_length=1, max_length=300)
     oracle_text: str | None = Field(default=None, max_length=10_000)
     type_line: str | None = Field(default=None, max_length=500)
     flavor_text: str | None = Field(default=None, max_length=5_000)
 
-    model_config = ConfigDict(str_strip_whitespace=True)
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+
+class TranslationCreate(BaseModel):
+    oracle_id: str = Field(min_length=1, max_length=100, pattern=r"^[A-Za-z0-9-]+$")
+    lang: str = Field(min_length=2, max_length=16, pattern=LANGUAGE_PATTERN)
+    name: str | None = Field(default=None, min_length=1, max_length=300)
+    oracle_text: str | None = Field(default=None, max_length=10_000)
+    type_line: str | None = Field(default=None, max_length=500)
+    flavor_text: str | None = Field(default=None, max_length=5_000)
+
+    card_faces: list[TranslationFace] | None = Field(default=None, min_length=2)
+
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
     @field_validator("lang")
     @classmethod
@@ -35,7 +47,9 @@ class TranslationUpdate(BaseModel):
     type_line: str | None = Field(default=None, max_length=500)
     flavor_text: str | None = Field(default=None, max_length=5_000)
 
-    model_config = ConfigDict(str_strip_whitespace=True)
+    card_faces: list[TranslationFace] | None = Field(default=None, min_length=2)
+
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
     @model_validator(mode="after")
     def validate_changes(self) -> "TranslationUpdate":
@@ -71,5 +85,6 @@ class TranslationResponse(BaseModel):
     oracle_text: str | None = None
     type_line: str | None = None
     flavor_text: str | None = None
+    card_faces: list[TranslationFace] | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None

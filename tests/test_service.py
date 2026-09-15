@@ -120,3 +120,84 @@ async def test_does_not_fall_back_to_english_if_translation_disappears() -> None
     result = await service.search(SearchParams(lang="pt-BR", colors="R"))
 
     assert result == []
+
+
+class MultifaceRepository(StubRepository):
+    async def get_by_oracle_id(self, oracle_id):
+        return {
+            "id": "printing-1",
+            "oracle_id": oracle_id,
+            "name": "Front // Back",
+            "cmc": 2,
+            "card_faces": [
+                {
+                    "name": "Front",
+                    "oracle_text": "English",
+                    "flavor_text": "English flavor",
+                    "mana_cost": "{1}{U}",
+                    "colors": ["U"],
+                    "power": "2",
+                    "toughness": "2",
+                },
+                {
+                    "name": "Back",
+                    "oracle_text": "Flying",
+                    "type_line": "Creature",
+                    "mana_cost": "",
+                    "colors": ["U"],
+                    "power": "3",
+                    "toughness": "3",
+                },
+            ],
+        }
+
+    async def search_oracle_cards(self, params, oracle_ids=None):
+        return [await self.get_by_oracle_id("oracle-1")]
+
+    async def get_translations(self, oracle_ids, lang):
+        return {
+            "oracle-1": {
+                "name": "Frente // Verso",
+                "card_faces": [
+                    {"face_index": 1, "name": "Verso", "oracle_text": "Voar"},
+                    {"face_index": 0, "name": "Frente"},
+                ],
+            }
+        }
+
+
+@pytest.mark.asyncio
+async def test_multiface_localized_get_and_search_preserve_mechanics():
+    repository = MultifaceRepository()
+    service = CardSearchService(repository)
+    original = await repository.get_by_oracle_id("oracle-1")
+    card = await service.get_by_oracle_id("oracle-1", "pt-BR")
+    assert card.name == "Frente // Verso"
+    faces = card.model_dump()["card_faces"]
+    assert faces[0]["name"] == "Frente"
+    assert faces[0]["oracle_text"] is None
+    assert faces[0]["flavor_text"] is None
+    assert faces[1]["oracle_text"] == "Voar"
+    assert faces[1]["type_line"] is None
+    for index, face in enumerate(faces):
+        for field in ("mana_cost", "colors", "power", "toughness"):
+            assert face[field] == original["card_faces"][index][field]
+    assert original["card_faces"][0]["name"] == "Front"
+    assert (await service.search(SearchParams(name="Frente")))[0] == card
+    english = await service.get_by_oracle_id("oracle-1", "en")
+    assert english.model_dump()["card_faces"] == original["card_faces"]
+
+
+@pytest.mark.asyncio
+async def test_incomplete_face_translation_is_unavailable():
+    from unittest.mock import AsyncMock
+
+    repository = MultifaceRepository()
+    repository.get_translations = AsyncMock(
+        return_value={
+            "oracle-1": {"name": "Incompleta", "card_faces": [{"face_index": 0, "name": "Frente"}]}
+        }
+    )
+    service = CardSearchService(repository)
+    assert await service.get_by_oracle_id("oracle-1", "pt-BR") is None
+    assert await service.search(SearchParams(name="Incompleta")) == []

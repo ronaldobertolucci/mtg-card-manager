@@ -55,3 +55,16 @@ def test_localized_card_query_uses_scryfall_oracle_id_not_printing_id() -> None:
 def test_conflicting_or_invalid_parameters(values: dict[str, object]) -> None:
     with pytest.raises(ValidationError):
         SearchParams(**values)
+
+
+@pytest.mark.asyncio
+async def test_translation_repository_reads_original_faces():
+    from app.translation_repository import MongoTranslationRepository
+
+    collection = AsyncMock()
+    collection.find_one.return_value = {"card_faces": [{}, {}]}
+    repository = MongoTranslationRepository(
+        SimpleNamespace(oracle_cards=collection, translations=AsyncMock())
+    )
+    assert await repository.get_oracle_card("oracle-1") == {"card_faces": [{}, {}]}
+    collection.find_one.assert_awaited_once_with({"oracle_id": "oracle-1"}, {"card_faces": 1})

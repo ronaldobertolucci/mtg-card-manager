@@ -18,6 +18,8 @@ class CardSearchService:
             if translation is None:
                 return None
             card = self._merge_translation(card, translation)
+            if card is None:
+                return None
         return self._serialize(card, lang)
 
     async def search(self, params: SearchParams) -> list[CardResponse]:
@@ -36,18 +38,36 @@ class CardSearchService:
             for card in cards:
                 translation = translations.get(str(card["oracle_id"]))
                 if translation is not None:
-                    localized_cards.append(self._merge_translation(card, translation))
+                    localized = self._merge_translation(card, translation)
+                    if localized is not None:
+                        localized_cards.append(localized)
             cards = localized_cards
 
         return [self._serialize(card, params.lang) for card in cards]
 
     @staticmethod
-    def _merge_translation(card: Document, translation: Document | None) -> Document:
+    def _merge_translation(card: Document, translation: Document | None) -> Document | None:
         merged = dict(card)
         if translation is not None:
             for field in TRANSLATABLE_FIELDS:
                 # A localized response must never fall back to English text.
                 merged[field] = translation.get(field)
+            original_faces = card.get("card_faces") or []
+            if len(original_faces) >= 2:
+                faces = translation.get("card_faces") or []
+                indices = [face.get("face_index") for face in faces]
+                if (
+                    len(indices) != len(original_faces)
+                    or set(indices) != set(range(len(original_faces)))
+                    or any(not face.get("name") for face in faces)
+                ):
+                    return None
+                by_index = {face["face_index"]: face for face in faces}
+                merged["card_faces"] = [
+                    {**face, **{field: by_index[index].get(field) for field in TRANSLATABLE_FIELDS}}
+                    for index, face in enumerate(original_faces)
+                ]
+                merged["name"] = " // ".join(face["name"] for face in merged["card_faces"])
         return merged
 
     @staticmethod

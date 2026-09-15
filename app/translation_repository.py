@@ -9,7 +9,7 @@ TranslationDocument = dict[str, Any]
 
 
 class TranslationRepository(Protocol):
-    async def oracle_card_exists(self, oracle_id: str) -> bool: ...
+    async def get_oracle_card(self, oracle_id: str) -> TranslationDocument | None: ...
 
     async def create(self, document: TranslationDocument) -> TranslationDocument: ...
 
@@ -35,9 +35,8 @@ class MongoTranslationRepository:
         self._oracle_cards = database.oracle_cards
         self._translations = database.translations
 
-    async def oracle_card_exists(self, oracle_id: str) -> bool:
-        document = await self._oracle_cards.find_one({"oracle_id": oracle_id}, {"_id": 1})
-        return document is not None
+    async def get_oracle_card(self, oracle_id: str) -> TranslationDocument | None:
+        return await self._oracle_cards.find_one({"oracle_id": oracle_id}, {"card_faces": 1})
 
     async def create(self, document: TranslationDocument) -> TranslationDocument:
         result = await self._translations.insert_one(document)
@@ -46,9 +45,7 @@ class MongoTranslationRepository:
     async def get_by_id(self, translation_id: ObjectId) -> TranslationDocument | None:
         return await self._translations.find_one({"_id": translation_id})
 
-    async def get_by_card_language(
-        self, oracle_id: str, lang: str
-    ) -> TranslationDocument | None:
+    async def get_by_card_language(self, oracle_id: str, lang: str) -> TranslationDocument | None:
         return await self._translations.find_one({"oracle_id": oracle_id, "lang": lang})
 
     async def list(

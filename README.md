@@ -352,10 +352,11 @@ Campos:
 | --- | --- | --- |
 | `oracle_id` | sim | Deve existir em `oracle_cards`; aceita letras, números e hífens. |
 | `lang` | sim | Código como `pt` ou `pt-BR`; `en` é rejeitado. |
-| `name` | sim | Entre 1 e 300 caracteres. |
+| `name` | cartas comuns | Entre 1 e 300 caracteres; em multiface, é derivado das faces. |
 | `oracle_text` | não | Texto traduzido ou `null`. |
 | `type_line` | não | Linha de tipo traduzida ou `null`. |
 | `flavor_text` | não | Texto de ambientação traduzido ou `null`. |
+| `card_faces` | cartas multiface | Lista completa de traduções por face; proibida em cartas comuns. |
 
 Respostas:
 
@@ -363,6 +364,39 @@ Respostas:
 - `404 Not Found`: `oracle_id` não existe em `oracle_cards`.
 - `409 Conflict`: já existe tradução para o mesmo `(oracle_id, lang)`.
 - `422 Unprocessable Entity`: corpo inválido ou tentativa de tradução `en`.
+
+### Traduções de cartas com múltiplas faces
+
+A API consulta a carta original em `oracle_cards`. Se ela possui duas ou mais
+entradas em `card_faces`, os textos devem ser enviados exclusivamente por face:
+
+```json
+{
+  "oracle_id": "oracle-id-multiface",
+  "lang": "pt-BR",
+  "card_faces": [
+    {"face_index": 0, "name": "Frente", "oracle_text": "Texto da frente."},
+    {"face_index": 1, "name": "Verso", "type_line": "Criatura — Lobisomem"}
+  ]
+}
+```
+
+- `face_index` é um inteiro a partir de zero e corresponde à posição da face original.
+- Todas as faces devem ser traduzidas, sem índices repetidos, ausentes ou extras.
+- Cada face exige `name`; `oracle_text`, `type_line` e `flavor_text` são opcionais,
+  com os mesmos limites dos campos de cartas comuns. Campos desconhecidos são rejeitados.
+- Custos, cores, poder e resistência continuam vindo exclusivamente da carta original.
+- As faces são ordenadas por índice. O nome principal é gerado com ` // `;
+  os demais campos textuais principais ficam `null` para cartas multiface.
+- Criar uma tradução multiface com textos na raiz, ou enviar faces para uma carta
+  comum, retorna `422`. Carta comum exige nome na raiz.
+- As respostas de cartas traduzem cada face e preservam seus atributos mecânicos.
+  Textos opcionais não traduzidos ficam `null`, sem preenchimento com inglês.
+  Uma tradução incompleta por face é considerada indisponível (`404` na consulta individual).
+
+Os filtros de busca ainda consultam somente campos principais. A pesquisa dentro
+de `card_faces` será implementada separadamente; esta mudança trata do cadastro e
+da resposta das traduções.
 
 ### Listar traduções
 
@@ -429,6 +463,11 @@ Content-Type: application/json
 
 - Pelo menos um campo deve ser informado.
 - Podem ser alterados `name`, `oracle_text`, `type_line` e `flavor_text`.
+- Para cartas multiface, envie somente `card_faces`, com a lista completa: ela
+  substitui a lista anterior, incluindo os textos opcionais. Não é uma mesclagem
+  parcial das faces. `card_faces: null` é rejeitado.
+- A estrutura final é validada contra a carta original antes de salvar, também
+  no `PATCH`. Carta original ausente retorna `404`.
 - `oracle_id` e `lang` são imutáveis.
 - `name` não aceita `null`.
 - Os outros campos podem receber `null` para remover o conteúdo traduzido.

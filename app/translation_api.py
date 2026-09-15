@@ -13,6 +13,7 @@ from app.translation_schemas import (
 )
 from app.translation_service import (
     InvalidTranslationIdError,
+    InvalidTranslationStructureError,
     OracleCardNotFoundError,
     TranslationConflictError,
     TranslationNotFoundError,
@@ -39,6 +40,8 @@ def _translate_error(error: Exception) -> HTTPException:
             status_code=409,
             detail="A translation for this oracle_id and lang already exists",
         )
+    if isinstance(error, InvalidTranslationStructureError):
+        return HTTPException(status_code=422, detail=str(error))
     raise error
 
 
@@ -49,7 +52,11 @@ async def create_translation(
 ) -> TranslationResponse:
     try:
         return await service.create(payload)
-    except (OracleCardNotFoundError, TranslationConflictError) as error:
+    except (
+        OracleCardNotFoundError,
+        TranslationConflictError,
+        InvalidTranslationStructureError,
+    ) as error:
         raise _translate_error(error) from error
 
 
@@ -95,7 +102,12 @@ async def update_translation(
 ) -> TranslationResponse:
     try:
         return await service.update(translation_id, payload)
-    except (InvalidTranslationIdError, TranslationNotFoundError) as error:
+    except (
+        InvalidTranslationIdError,
+        TranslationNotFoundError,
+        OracleCardNotFoundError,
+        InvalidTranslationStructureError,
+    ) as error:
         raise _translate_error(error) from error
 
 
