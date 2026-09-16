@@ -31,6 +31,11 @@ def _text_filter(params: SearchParams) -> Document:
         value = getattr(params, field)
         if value is not None:
             result[field] = {"$regex": re.escape(value), "$options": "i"}
+    if params.name_exact is not None:
+        if "name" in result:
+            result["name"]["$eq"] = params.name_exact
+        else:
+            result["name"] = params.name_exact
     return result
 
 

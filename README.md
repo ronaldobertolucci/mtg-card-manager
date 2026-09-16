@@ -210,6 +210,7 @@ combinados com lógica `AND`.
 | --- | --- | --- | --- |
 | `lang` | string | `pt-BR` | Idioma da resposta. Use `en` para dados oficiais ou um idioma com traduções cadastradas. |
 | `name` | string | — | Busca parcial por nome, sem diferenciar maiúsculas e minúsculas. |
+| `name_exact` | string | — | Busca pelo nome completo com igualdade (`=`), diferenciando maiúsculas e minúsculas. |
 | `oracle_text` | string | — | Busca parcial no texto Oracle. |
 | `type_line` | string | — | Busca parcial na linha de tipo. |
 | `colors` | string | — | Cores separadas por vírgula. Aceita somente `W,U,B,R,G`, sem repetição. |
@@ -239,6 +240,14 @@ considerando os campos principais e as faces:
 ```bash
 curl 'http://localhost:8000/cards/search?lang=en&name=Lightning%20Bolt'
 ```
+
+Para exigir o nome completo com igualdade, use `name_exact`:
+
+```bash
+curl 'http://localhost:8000/cards/search?lang=en&name_exact=Lightning%20Bolt'
+```
+
+Se `name` e `name_exact` forem informados juntos, ambos devem corresponder (`AND`).
 
 ```bash
 curl 'http://localhost:8000/cards/search?lang=en&type_line=Creature&cmc_gte=2&cmc_lte=4&limit=20'
@@ -273,13 +282,14 @@ curl 'http://localhost:8000/cards/search?lang=pt-BR&colors=R&cmc=1&limit=5'
 
 ### Busca por faces
 
-- `name` consulta o nome principal, que contém os nomes unidos por ` // `.
+- `name` e `name_exact` consultam o nome principal, que contém os nomes unidos por ` // `.
+  `name` faz busca parcial; `name_exact` exige igualdade exata.
   Não restringe qual face deve atender aos demais filtros.
 - `cmc`, `cmc_gte` e `cmc_lte` consultam somente o valor principal da carta;
   não calculam valores individuais a partir dos custos das faces.
 - `oracle_text`, `type_line`, `mana_cost`, `colors`, `power` e `toughness`
   devem corresponder juntos aos campos principais ou a uma mesma face.
-- Texto continua usando correspondência parcial literal, sem distinguir maiúsculas.
+- `oracle_text` e `type_line` usam correspondência parcial literal, sem distinguir maiúsculas.
   Custo, poder e resistência usam igualdade exata; cores exigem o mesmo array e ordem.
 - Em traduções, o texto e os atributos mecânicos devem corresponder ao mesmo
   `face_index`, independentemente da ordem das faces no documento da tradução.

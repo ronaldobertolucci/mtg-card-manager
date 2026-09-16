@@ -65,6 +65,24 @@ def test_get_card_defaults_to_portuguese(card_client) -> None:
     repository.get_translations.assert_awaited_once_with(["oracle-1"], "pt-BR")
 
 
+@pytest.mark.parametrize("field", ["name", "name_exact"])
+def test_search_accepts_name_filters(card_client, field) -> None:
+    client, repository = card_client
+    repository.search_oracle_cards.return_value = [repository.get_by_oracle_id.return_value]
+    response = client.get("/cards/search", params={"lang": "en", field: "Lightning Bolt"})
+    assert response.status_code == 200
+    assert response.json()[0]["name"] == "Lightning Bolt"
+    params = repository.search_oracle_cards.call_args.args[0]
+    assert getattr(params, field) == "Lightning Bolt"
+
+
+@pytest.mark.parametrize("name", ["", "x" * 201])
+def test_search_validates_exact_name(card_client, name) -> None:
+    client, repository = card_client
+    assert client.get("/cards/search", params={"name_exact": name}).status_code == 400
+    repository.search_oracle_cards.assert_not_awaited()
+
+
 def test_get_missing_card_returns_404(card_client) -> None:
     client, repository = card_client
     repository.get_by_oracle_id.return_value = None

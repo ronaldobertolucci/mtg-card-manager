@@ -11,6 +11,12 @@ class SearchParams(BaseModel):
         pattern=r"^[A-Za-z]{2}(?:-[A-Za-z]{2})?$",
     )
     name: str | None = Field(default=None, min_length=1, max_length=200)
+    name_exact: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=200,
+        description="Exact full card name (case-sensitive).",
+    )
     oracle_text: str | None = Field(default=None, min_length=1, max_length=1000)
     type_line: str | None = Field(default=None, min_length=1, max_length=200)
     colors: list[str] | None = None
@@ -55,6 +61,7 @@ class SearchParams(BaseModel):
     def validate_filters(self) -> "SearchParams":
         filters = (
             self.name,
+            self.name_exact,
             self.oracle_text,
             self.type_line,
             self.colors,
@@ -75,7 +82,7 @@ class SearchParams(BaseModel):
 
     @property
     def has_text_filters(self) -> bool:
-        return any((self.name, self.oracle_text, self.type_line))
+        return any((self.name, self.name_exact, self.oracle_text, self.type_line))
 
 
 class CardResponse(BaseModel):

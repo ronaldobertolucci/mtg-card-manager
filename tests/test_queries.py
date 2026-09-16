@@ -1,5 +1,5 @@
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from pydantic import ValidationError
@@ -20,9 +20,41 @@ async def test_get_by_oracle_id_uses_stable_identity(card) -> None:
     collection.find_one.assert_awaited_once_with({"oracle_id": "oracle-1"})
 
 
+@pytest.mark.parametrize("name", ["Lightning Bolt", "Black (Lotus)", ".*", "Front // Back"])
+def test_name_filter_uses_literal_equality(name: str) -> None:
+    assert _oracle_card_filter(SearchParams(lang="en", name_exact=name)) == {"name": name}
+
+
 def test_text_filter_escapes_regex_metacharacters() -> None:
-    query = _text_filter(SearchParams(name="Black (Lotus)"))
-    assert query == {"name": {"$regex": "Black\\ \\(Lotus\\)", "$options": "i"}}
+    query = _text_filter(SearchParams(oracle_text="(two)"))
+    assert query == {"oracle_text": {"$regex": r"\(two\)", "$options": "i"}}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "filters,expected",
+    [
+        ({"name_exact": "Raio"}, "Raio"),
+        ({"name": "ra"}, {"$regex": "ra", "$options": "i"}),
+        (
+            {"name": "ra", "name_exact": "Raio"},
+            {"$regex": "ra", "$options": "i", "$eq": "Raio"},
+        ),
+    ],
+)
+async def test_translation_name_filters(filters, expected) -> None:
+    collection = MagicMock()
+    cursor = MagicMock()
+    cursor.__aiter__.return_value = [{"oracle_id": "oracle-1"}]
+    collection.find.return_value = cursor
+    repository = MongoCardRepository(
+        SimpleNamespace(oracle_cards=MagicMock(), translations=collection)
+    )
+
+    matches = await repository.search_translation_matches(SearchParams(**filters))
+
+    assert matches == {"oracle-1": None}
+    assert collection.find.call_args.args[0] == {"lang": "pt-BR", "name": expected}
 
 
 def test_cmc_range_query() -> None:
@@ -72,3 +104,20 @@ async def test_translation_repository_reads_original_faces():
     )
     assert await repository.get_oracle_card("oracle-1") == {"card_faces": [{}, {}]}
     collection.find_one.assert_awaited_once_with({"oracle_id": "oracle-1"}, {"card_faces": 1})
+
+
+@pytest.mark.parametrize("field", ["name", "oracle_text", "type_line"])
+def test_partial_text_filters_preserve_literal_case_insensitive_search(field):
+    assert _text_filter(SearchParams(**{field: "(two)"})) == {
+        field: {"$regex": r"\(two\)", "$options": "i"}
+    }
+
+
+def test_name_filters_combine_with_and():
+    assert _oracle_card_filter(
+        SearchParams(lang="en", name="bolt", name_exact="Lightning Bolt")
+    ) == {"name": {"$regex": "bolt", "$options": "i", "$eq": "Lightning Bolt"}}
+
+
+def test_name_exact_is_a_text_filter():
+    assert SearchParams(name_exact="Raio").has_text_filters
