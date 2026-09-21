@@ -211,6 +211,7 @@ combinados com lógica `AND`.
 | `lang` | string | `pt-BR` | Idioma da resposta. Use `en` para dados oficiais ou um idioma com traduções cadastradas. |
 | `name` | string | — | Busca parcial por nome, sem diferenciar maiúsculas e minúsculas. |
 | `name_exact` | string | — | Busca pelo nome completo com igualdade (`=`), diferenciando maiúsculas e minúsculas. |
+| `include_tokens` | boolean | `false` | Inclui tokens nos resultados quando `true`. |
 | `oracle_text` | string | — | Busca parcial no texto Oracle. |
 | `type_line` | string | — | Busca parcial na linha de tipo. |
 | `colors` | string | — | Cores separadas por vírgula. Aceita somente `W,U,B,R,G`, sem repetição. |
@@ -246,6 +247,13 @@ Para exigir o nome completo com igualdade, use `name_exact`:
 ```bash
 curl 'http://localhost:8000/cards/search?lang=en&name_exact=Lightning%20Bolt'
 ```
+
+O nome exato pode ser compartilhado por uma carta e um token, como `Ornithopter`.
+As buscas excluem os layouts `token` e `double_faced_token` por padrão, antes da
+paginação, em qualquer idioma. Use
+`/cards/search?lang=en&name_exact=Ornithopter` para buscar a carta; acrescente
+`&include_tokens=true` para incluir também os tokens. O catálogo e a consulta
+direta por `oracle_id` continuam permitindo acesso aos tokens.
 
 Se `name` e `name_exact` forem informados juntos, ambos devem corresponder (`AND`).
 

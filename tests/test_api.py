@@ -83,6 +83,18 @@ def test_search_validates_exact_name(card_client, name) -> None:
     repository.search_oracle_cards.assert_not_awaited()
 
 
+@pytest.mark.parametrize("value,expected", [("true", True), ("false", False)])
+def test_search_accepts_include_tokens(card_client, value, expected):
+    client, repository = card_client
+    repository.search_oracle_cards.return_value = [repository.get_by_oracle_id.return_value]
+    response = client.get(
+        "/cards/search", params={"lang": "en", "name_exact": "Ornithopter",
+                                 "include_tokens": value}
+    )
+    assert response.status_code == 200
+    assert repository.search_oracle_cards.call_args.args[0].include_tokens is expected
+
+
 def test_get_missing_card_returns_404(card_client) -> None:
     client, repository = card_client
     repository.get_by_oracle_id.return_value = None

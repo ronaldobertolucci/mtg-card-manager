@@ -28,6 +28,10 @@ class SearchParams(BaseModel):
     toughness: str | None = Field(default=None, max_length=20)
     limit: int = Field(default=50, ge=1, le=200)
     offset: int = Field(default=0, ge=0, le=100_000)
+    include_tokens: bool = Field(
+        default=False,
+        description="Include token and double-faced token layouts in search results.",
+    )
 
     @field_validator("colors", mode="before")
     @classmethod

@@ -22,7 +22,9 @@ async def test_get_by_oracle_id_uses_stable_identity(card) -> None:
 
 @pytest.mark.parametrize("name", ["Lightning Bolt", "Black (Lotus)", ".*", "Front // Back"])
 def test_name_filter_uses_literal_equality(name: str) -> None:
-    assert _oracle_card_filter(SearchParams(lang="en", name_exact=name)) == {"name": name}
+    assert _oracle_card_filter(SearchParams(lang="en", name_exact=name)) == {
+        "layout": {"$nin": ["token", "double_faced_token"]}, "name": name
+    }
 
 
 def test_text_filter_escapes_regex_metacharacters() -> None:
@@ -69,6 +71,7 @@ def test_localized_card_query_uses_scryfall_oracle_id_not_printing_id() -> None:
     )
 
     assert query == {
+        "layout": {"$nin": ["token", "double_faced_token"]},
         "$or": [
             {
                 "oracle_id": {"$in": ["oracle-1", "oracle-2"]},
@@ -116,7 +119,10 @@ def test_partial_text_filters_preserve_literal_case_insensitive_search(field):
 def test_name_filters_combine_with_and():
     assert _oracle_card_filter(
         SearchParams(lang="en", name="bolt", name_exact="Lightning Bolt")
-    ) == {"name": {"$regex": "bolt", "$options": "i", "$eq": "Lightning Bolt"}}
+    ) == {
+        "layout": {"$nin": ["token", "double_faced_token"]},
+        "name": {"$regex": "bolt", "$options": "i", "$eq": "Lightning Bolt"},
+    }
 
 
 def test_name_exact_is_a_text_filter():

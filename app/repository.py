@@ -71,6 +71,8 @@ def _oracle_card_filter(
 ) -> Document:
     attributes = _attribute_filter(params)
     query: Document = {}
+    if not params.include_tokens:
+        query["layout"] = {"$nin": ["token", "double_faced_token"]}
     if "cmc" in attributes:
         query["cmc"] = attributes.pop("cmc")
     if params.lang == "en":

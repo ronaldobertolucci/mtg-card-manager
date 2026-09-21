@@ -183,3 +183,29 @@ async def test_pagination_after_face_matching_and_no_duplicates(catalog):
     assert [card.oracle_id for card in result] == ["multi", "normal"]
     page = await service.search(SearchParams(lang="en", oracle_text="Flying", limit=1, offset=1))
     assert [card.oracle_id for card in page] == ["normal"]
+
+
+@pytest.mark.parametrize("lang", ["en", "pt-BR"])
+@pytest.mark.parametrize("name_filter", ["name", "name_exact"])
+async def test_same_name_tokens_are_excluded_before_pagination(catalog, lang, name_filter):
+    database, service = catalog
+    for identity, layout in [
+        ("a-token", "token"),
+        ("b-token", "double_faced_token"),
+        ("z-card", "normal"),
+    ]:
+        await database.oracle_cards.insert_one(
+            {"_id": identity, "id": identity, "oracle_id": identity,
+             "name": "Ornithopter", "layout": layout}
+        )
+        await database.translations.insert_one(
+            {"oracle_id": identity, "lang": "pt-BR", "name": "Ornithopter"}
+        )
+    filters = {name_filter: "Ornithopter"}
+    result = await service.search(SearchParams(lang=lang, limit=1, **filters))
+    assert [card.oracle_id for card in result] == ["z-card"]
+    page = await service.search(SearchParams(lang=lang, limit=1, offset=1, **filters))
+    assert page == []
+    included = await service.search(SearchParams(lang=lang, include_tokens=True, **filters))
+    assert [card.oracle_id for card in included] == ["a-token", "b-token", "z-card"]
+    assert (await service.get_by_oracle_id("a-token", lang)).oracle_id == "a-token"
