@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, sta
 
 from app.database import get_database
 from app.repository import MongoCardRepository
-from app.schemas import CardResponse, SearchParams
+from app.schemas import CardResponse, ResolveCardsRequest, ResolvedCardResponse, SearchParams
+from app.scryfall import ScryfallCardNotFound, ScryfallUnavailable
 from app.service import CardSearchService
 from app.translation_schemas import LANGUAGE_PATTERN
 
@@ -24,6 +25,19 @@ async def search_cards(
     if not cards:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No cards found")
     return cards
+
+
+@router.post("/resolve", response_model=list[ResolvedCardResponse])
+async def resolve_cards(
+    payload: ResolveCardsRequest,
+    service: Annotated[CardSearchService, Depends(get_service)],
+) -> list[ResolvedCardResponse]:
+    try:
+        return await service.resolve(payload.ids)
+    except ScryfallCardNotFound as exc:
+        raise HTTPException(status_code=404, detail=f"Card not found: {exc}") from exc
+    except ScryfallUnavailable as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @router.get("/{oracle_id}", response_model=CardResponse)

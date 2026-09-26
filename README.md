@@ -2,8 +2,9 @@
 
 Microsserviço em Python e FastAPI para ingerir, armazenar e pesquisar dados de cartas
 de Magic: The Gathering. O serviço mantém uma cópia local do Scryfall Oracle Cards e
-permite cadastrar traduções próprias, principalmente em `pt-BR`, sem consultar APIs
-públicas em tempo real e sem sobrescrever traduções durante o sincronismo diário.
+permite cadastrar traduções próprias, principalmente em `pt-BR`, sem sobrescrever
+traduções durante o sincronismo diário. Pesquisas usam a base local; a resolução de
+IDs consulta o Scryfall em tempo real somente para impressões ausentes dessa base.
 
 ## Tecnologias
 
@@ -178,6 +179,48 @@ MONGODB_URI=mongodb://localhost:27017 python sync_scryfall.py
 ```
 
 ## API
+
+### Resolver IDs de impressões
+
+`POST /cards/resolve` recebe IDs de impressões do Scryfall e retorna seus Oracle IDs:
+
+```bash
+curl -X POST http://localhost:8000/cards/resolve \
+  -H 'Content-Type: application/json' \
+  -d '{"ids": ["scryfall-id-1", "scryfall-id-2"]}'
+```
+
+Exemplo ilustrativo de resposta:
+
+```json
+[
+  {
+    "id": "scryfall-id-1",
+    "oracleId": "oracle-id-1",
+    "name": "Lightning Bolt",
+    "layout": "normal",
+    "typeLine": "Instant"
+  },
+  {
+    "id": "scryfall-id-2",
+    "oracleId": "oracle-id-1",
+    "name": "Lightning Bolt",
+    "layout": "normal",
+    "typeLine": "Instant"
+  }
+]
+```
+
+A consulta local filtra `oracle_cards.id` em lote, usando o índice `ix_oracle_cards_id`.
+Cada ID ausente é consultado via `GET https://api.scryfall.com/cards/{id}`.
+O retorno preserva a ordem e as repetições da entrada; IDs repetidos são consultados
+uma única vez por chamada. Uma lista vazia retorna `[]`. Os dados do fallback não são
+persistidos e não recebem traduções customizadas.
+
+Payload inválido retorna `422`. Se algum ID não existir no Scryfall, a operação retorna
+`404`; falhas HTTP, timeout ou resposta externa incompatível com o DTO retornam `502`.
+Esses erros interrompem a operação, sem retornar uma lista parcial. O cliente HTTP
+usa timeout de 10 segundos e intervalo de 100 ms entre consultas externas do mesmo lote.
 
 Todas as respostas são JSON, exceto exclusões bem-sucedidas, que retornam corpo vazio.
 

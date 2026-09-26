@@ -1,6 +1,18 @@
-from typing import Any
+from typing import Annotated, Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+
+class ResolveCardsRequest(BaseModel):
+    ids: list[Annotated[str, Field(min_length=1, max_length=100, pattern=r"^[A-Za-z0-9-]+$")]]
+
+
+class ResolvedCardResponse(BaseModel):
+    id: str
+    oracle_id: str = Field(serialization_alias="oracleId", min_length=1)
+    name: str
+    layout: str
+    type_line: str = Field(serialization_alias="typeLine")
 
 
 class SearchParams(BaseModel):

@@ -12,6 +12,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
     client: AsyncIOMotorClient = AsyncIOMotorClient(settings.mongodb_uri)
     database = client[settings.mongodb_database]
+    await database.oracle_cards.create_index([("id", 1)], name="ix_oracle_cards_id")
     await database.oracle_cards.create_index(
         [("oracle_id", 1)],
         unique=True,

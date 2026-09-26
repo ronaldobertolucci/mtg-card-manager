@@ -12,6 +12,8 @@ TranslationMatches = Mapping[str, list[int] | None]
 
 
 class CardRepository(Protocol):
+    async def get_by_ids(self, ids: Sequence[str]) -> list[Document]: ...
+
     async def get_by_oracle_id(self, oracle_id: str) -> Document | None: ...
 
     async def search_translation_matches(self, params: SearchParams) -> TranslationMatches: ...
@@ -111,6 +113,12 @@ class MongoCardRepository:
     def __init__(self, database: AsyncIOMotorDatabase) -> None:
         self._oracle_cards = database.oracle_cards
         self._translations = database.translations
+
+    async def get_by_ids(self, ids: Sequence[str]) -> list[Document]:
+        if not ids:
+            return []
+        cursor = self._oracle_cards.find({"id": {"$in": list(ids)}})
+        return [document async for document in cursor]
 
     async def get_by_oracle_id(self, oracle_id: str) -> Document | None:
         return await self._oracle_cards.find_one({"oracle_id": oracle_id})

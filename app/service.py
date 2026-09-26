@@ -1,12 +1,27 @@
 from app.repository import CardRepository, Document, TranslationMatches
-from app.schemas import CardResponse, SearchParams
+from app.schemas import CardResponse, ResolvedCardResponse, SearchParams
+from app.scryfall import ScryfallClient
 
 TRANSLATABLE_FIELDS = ("name", "oracle_text", "type_line", "flavor_text")
 
 
 class CardSearchService:
-    def __init__(self, repository: CardRepository) -> None:
+    def __init__(
+        self, repository: CardRepository, scryfall: ScryfallClient | None = None
+    ) -> None:
         self._repository = repository
+        self._scryfall = scryfall if scryfall is not None else ScryfallClient()
+
+    async def resolve(self, ids: list[str]) -> list[ResolvedCardResponse]:
+        if not ids:
+            return []
+        unique_ids = list(dict.fromkeys(ids))
+        local_cards = await self._repository.get_by_ids(unique_ids)
+        cards = {card["id"]: ResolvedCardResponse.model_validate(card) for card in local_cards}
+        missing_ids = [card_id for card_id in unique_ids if card_id not in cards]
+        if missing_ids:
+            cards.update(await self._scryfall.get_by_ids(missing_ids))
+        return [cards[card_id] for card_id in ids]
 
     async def get_by_oracle_id(self, oracle_id: str, lang: str) -> CardResponse | None:
         card = await self._repository.get_by_oracle_id(oracle_id)
