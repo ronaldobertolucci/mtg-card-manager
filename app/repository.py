@@ -73,6 +73,8 @@ def _oracle_card_filter(
 ) -> Document:
     attributes = _attribute_filter(params)
     query: Document = {}
+    if params.format is not None:
+        query[f"legalities.{params.format}"] = {"$in": params.legality}
     if not params.include_tokens:
         query["layout"] = {"$nin": ["token", "double_faced_token"]}
     if "cmc" in attributes:

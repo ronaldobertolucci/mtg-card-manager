@@ -127,3 +127,21 @@ def test_name_filters_combine_with_and():
 
 def test_name_exact_is_a_text_filter():
     assert SearchParams(name_exact="Raio").has_text_filters
+
+
+@pytest.mark.parametrize("lang,matches", [("en", None), ("pt-BR", {"oracle-1": [1]})])
+def test_legality_filters_whole_card_alongside_face_filters(lang, matches):
+    query = _oracle_card_filter(
+        SearchParams(lang=lang, format="vintage", oracle_text="Flying", power="4"), matches
+    )
+    assert query.pop("legalities.vintage") == {"$in": ["legal", "restricted"]}
+    assert query == _oracle_card_filter(
+        SearchParams(lang=lang, oracle_text="Flying", power="4"), matches
+    )
+
+
+def test_legality_does_not_filter_translated_text_or_face_attributes():
+    params = SearchParams(format="modern", legality="banned")
+    assert _text_filter(params) == {}
+    assert _attribute_filter(params) == {}
+    assert not params.has_text_filters

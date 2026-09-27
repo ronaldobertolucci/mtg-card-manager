@@ -161,3 +161,54 @@ def test_no_matches_returns_404() -> None:
         app.dependency_overrides.clear()
         app.router.lifespan_context = original_lifespan
     assert response.status_code == 404
+
+
+@pytest.mark.parametrize(
+    "legality,expected",
+    [(None, ["legal", "restricted"]), ("LEGAL", ["legal"]),
+     (" Restricted, BANNED ", ["restricted", "banned"]),
+     ("not_legal", ["not_legal"]), ("legal,legal", ["legal"])],
+)
+def test_search_legality_contract(card_client, legality, expected):
+    client, repository = card_client
+    repository.get_by_oracle_id.return_value["legalities"] = {
+        "vintage": "restricted", "future_format": "banned"
+    }
+    repository.search_oracle_cards.return_value = [repository.get_by_oracle_id.return_value]
+    query = {"lang": "en", "format": " VINTAGE "}
+    if legality is not None:
+        query["legality"] = legality
+    response = client.get("/cards/search", params=query)
+    assert response.status_code == 200
+    params = repository.search_oracle_cards.call_args.args[0]
+    assert params.format == "vintage"
+    assert params.legality == expected
+    assert response.json()[0]["legalities"] == {
+        "vintage": "restricted", "future_format": "banned"
+    }
+
+
+@pytest.mark.parametrize("query", [
+    {"legality": "legal", "name": "Bolt"},
+    {"format": "unknown"}, {"format": "vintage.$ne"}, {"format": ""},
+    {"format": "vintage", "legality": "unknown"},
+    {"format": "vintage", "legality": ""},
+    {"format": "vintage", "legality": "legal,"},
+])
+def test_search_rejects_invalid_legality_filters(card_client, query):
+    client, repository = card_client
+    assert client.get("/cards/search", params=query).status_code == 400
+    repository.search_oracle_cards.assert_not_awaited()
+    repository.search_translation_matches.assert_not_awaited()
+
+
+def test_legalities_are_preserved_in_translation(card_client):
+    client, repository = card_client
+    repository.get_by_oracle_id.return_value["legalities"] = {"modern": "banned"}
+    repository.get_translations.return_value["oracle-1"]["legalities"] = {"modern": "legal"}
+    assert client.get("/cards/oracle-1").json()["legalities"] == {"modern": "banned"}
+
+
+def test_missing_legalities_returns_empty_map(card_client):
+    client, _ = card_client
+    assert client.get("/cards/oracle-1").json()["legalities"] == {}

@@ -2,6 +2,8 @@ from typing import Annotated, Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.legalities import GameFormat, Legality
+
 
 class ResolveCardsRequest(BaseModel):
     ids: list[Annotated[str, Field(min_length=1, max_length=100, pattern=r"^[A-Za-z0-9-]+$")]]
@@ -38,12 +40,34 @@ class SearchParams(BaseModel):
     cmc_lte: float | None = Field(default=None, ge=0)
     power: str | None = Field(default=None, max_length=20)
     toughness: str | None = Field(default=None, max_length=20)
+    format: GameFormat | None = Field(default=None, description="Scryfall format identifier.")
+    legality: list[Legality] | None = Field(
+        default=None,
+        min_length=1,
+        description="Comma-separated statuses (OR). Requires format; defaults to legal,restricted.",
+    )
     limit: int = Field(default=50, ge=1, le=200)
     offset: int = Field(default=0, ge=0, le=100_000)
     include_tokens: bool = Field(
         default=False,
         description="Include token and double-faced token layouts in search results.",
     )
+
+    @field_validator("format", mode="before")
+    @classmethod
+    def normalize_format(cls, value: Any) -> Any:
+        return value.strip().lower() if isinstance(value, str) else value
+
+    @field_validator("legality", mode="before")
+    @classmethod
+    def parse_legality(cls, value: Any) -> Any:
+        if value is None:
+            return value
+        values = [value] if isinstance(value, str) else value
+        if not isinstance(values, list) or any(not isinstance(item, str) for item in values):
+            raise ValueError("legality must be a comma-separated string")
+        parts = (part.strip().lower() for item in values for part in item.split(","))
+        return list(dict.fromkeys(parts))
 
     @field_validator("colors", mode="before")
     @classmethod
@@ -75,7 +99,12 @@ class SearchParams(BaseModel):
 
     @model_validator(mode="after")
     def validate_filters(self) -> "SearchParams":
+        if self.legality is not None and self.format is None:
+            raise ValueError("legality requires format")
+        if self.format is not None and self.legality is None:
+            self.legality = [Legality.LEGAL, Legality.RESTRICTED]
         filters = (
+            self.format,
             self.name,
             self.name_exact,
             self.oracle_text,
@@ -105,6 +134,7 @@ class CardResponse(BaseModel):
     id: str
     oracle_id: str
     lang: str
+    legalities: dict[str, Legality] = Field(default_factory=dict)
     name: str
     oracle_text: str | None = None
     type_line: str | None = None

@@ -264,6 +264,8 @@ combinados com lógica `AND`.
 | `cmc_lte` | número | — | Valor de mana máximo, inclusivo. |
 | `power` | string | — | Poder exato, incluindo valores não numéricos como `*`. |
 | `toughness` | string | — | Resistência exata. |
+| `format` | string | — | Formato do Scryfall; sozinho seleciona `legal,restricted`. |
+| `legality` | string | `legal,restricted` com formato | Status separados por vírgula; exige `format`. |
 | `limit` | inteiro | `50` | Quantidade de resultados, entre 1 e 200. |
 | `offset` | inteiro | `0` | Quantidade ignorada para paginação, entre 0 e 100.000. |
 
@@ -275,6 +277,37 @@ Regras importantes:
   “contém azul ou vermelho”.
 - Para custos com chaves, faça URL encoding quando necessário: `{R}` vira `%7BR%7D`.
 - Recomenda-se usar o formato canônico dos idiomas, como `en` e `pt-BR`.
+
+### Legalidade por formato
+
+Informe um formato por consulta. Sem `legality`, `format` seleciona os status
+`legal` e `restricted`. Para distinguir os dois, informe o status explicitamente:
+
+```http
+GET /cards/search?lang=en&format=commander
+GET /cards/search?lang=en&format=vintage&legality=restricted
+GET /cards/search?lang=en&format=vintage&legality=legal,restricted
+GET /cards/search?lang=en&format=modern&legality=banned&colors=R
+```
+
+- Status aceitos: `legal`, `restricted`, `not_legal`, `banned`.
+- Vários status usam `OR` (separados por vírgula); formato/status e os demais filtros usam `AND`.
+- Formatos e status aceitam maiúsculas e espaços nas extremidades; status repetidos
+  são deduplicados. Valores vazios ou desconhecidos retornam `400`.
+- `legality` exige `format`. Apenas `format` já satisfaz o filtro obrigatório.
+- Formatos suportados: `standard`, `future`, `historic`, `timeless`, `gladiator`,
+  `pioneer`, `explorer`, `modern`, `legacy`, `pauper`, `vintage`, `penny`, `commander`,
+  `oathbreaker`, `standardbrawl`, `brawl`, `alchemy`, `paupercommander`, `duel`,
+  `oldschool`, `premodern`, `predh`. A lista versionada fica em `app/legalities.py`.
+- O filtro consulta `legalities.<formato>` da carta inteira, antes da paginação,
+  independentemente das faces. Campo ou formato ausente não corresponde a nenhum
+  status, nem mesmo `not_legal`.
+- As respostas da busca e da consulta individual incluem o mapa completo
+  `legalities`, inclusive em traduções. Cartas antigas sem o campo retornam `{}`.
+- O idioma padrão continua sendo `pt-BR` e exige tradução cadastrada. Use `lang=en`
+  para pesquisar todo o catálogo oficial. A exclusão padrão de tokens é preservada.
+- Os status refletem a última sincronização local; a busca não consulta o Scryfall.
+  Sem correspondências, a API mantém o retorno `404`.
 
 ### Busca em inglês
 

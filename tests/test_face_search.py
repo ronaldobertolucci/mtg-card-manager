@@ -209,3 +209,36 @@ async def test_same_name_tokens_are_excluded_before_pagination(catalog, lang, na
     included = await service.search(SearchParams(lang=lang, include_tokens=True, **filters))
     assert [card.oracle_id for card in included] == ["a-token", "b-token", "z-card"]
     assert (await service.get_by_oracle_id("a-token", lang)).oracle_id == "a-token"
+
+
+@pytest.mark.parametrize("lang,text", [("en", "Flying"), ("pt-BR", "Voar")])
+async def test_legality_with_faces_translation_and_pagination(catalog, lang, text):
+    database, service = catalog
+    await database.oracle_cards.update_one(
+        {"oracle_id": "multi"}, {"$set": {"legalities.vintage": "banned"}}
+    )
+    await database.oracle_cards.update_one(
+        {"oracle_id": "normal"}, {"$set": {"legalities.vintage": "restricted"}}
+    )
+    result = await service.search(
+        SearchParams(lang=lang, format="vintage", oracle_text=text, limit=1)
+    )
+    assert [card.oracle_id for card in result] == ["normal"]
+    assert result[0].legalities == {"vintage": "restricted"}
+    assert await service.search(
+        SearchParams(lang=lang, format="vintage", legality="legal")
+    ) == []
+    result = await service.search(
+        SearchParams(lang=lang, format="vintage", legality="banned", oracle_text=text, power="4")
+    )
+    assert [card.oracle_id for card in result] == ["multi"]
+    result = await service.search(
+        SearchParams(lang=lang, format="vintage", legality="banned,restricted", offset=1, limit=1)
+    )
+    assert [card.oracle_id for card in result] == ["normal"]
+
+
+@pytest.mark.parametrize("status", ["legal", "restricted", "banned", "not_legal"])
+async def test_missing_legality_never_matches(catalog, status):
+    _, service = catalog
+    assert await service.search(SearchParams(lang="en", format="modern", legality=status)) == []
