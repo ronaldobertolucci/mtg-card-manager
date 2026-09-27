@@ -40,7 +40,7 @@ class StubRepository:
         return {
             "oracle-1": {
                 "oracle_id": "oracle-1",
-                "lang": "pt-BR",
+                "lang": "pt",
                 "name": "Raio",
                 "oracle_text": "Causa 3 pontos de dano.",
                 "type_line": "Mágica Instantânea",
@@ -53,7 +53,7 @@ async def test_non_english_text_search_uses_two_steps_and_merges_translation() -
     repository = StubRepository()
     service = CardSearchService(repository)
 
-    result = await service.search(SearchParams(lang="pt-BR", name="raio"))
+    result = await service.search(SearchParams(lang="pt", name="raio"))
 
     assert repository.received_ids == {"oracle-1": None}
     assert result[0].id == "card-1"
@@ -61,7 +61,7 @@ async def test_non_english_text_search_uses_two_steps_and_merges_translation() -
     assert result[0].name == "Raio"
     assert result[0].oracle_text == "Causa 3 pontos de dano."
     assert result[0].flavor_text is None
-    assert result[0].lang == "pt-BR"
+    assert result[0].lang == "pt"
 
 
 @pytest.mark.asyncio
@@ -81,7 +81,7 @@ async def test_non_english_attribute_search_requires_translation() -> None:
     repository = StubRepository()
     service = CardSearchService(repository)
 
-    result = await service.search(SearchParams(lang="pt-BR", colors="R"))
+    result = await service.search(SearchParams(lang="pt", colors="R"))
 
     assert repository.translation_searches == 1
     assert repository.received_ids == {"oracle-1": None}
@@ -99,7 +99,7 @@ async def test_non_english_search_without_translations_returns_no_cards() -> Non
     repository = NoTranslationRepository()
     service = CardSearchService(repository)
 
-    result = await service.search(SearchParams(lang="pt-BR", colors="U"))
+    result = await service.search(SearchParams(lang="pt", colors="U"))
 
     assert result == []
     assert repository.translation_searches == 1
@@ -117,7 +117,7 @@ class TranslationRemovedRepository(StubRepository):
 async def test_does_not_fall_back_to_english_if_translation_disappears() -> None:
     service = CardSearchService(TranslationRemovedRepository())
 
-    result = await service.search(SearchParams(lang="pt-BR", colors="R"))
+    result = await service.search(SearchParams(lang="pt", colors="R"))
 
     assert result == []
 
@@ -171,7 +171,7 @@ async def test_multiface_localized_get_and_search_preserve_mechanics():
     repository = MultifaceRepository()
     service = CardSearchService(repository)
     original = await repository.get_by_oracle_id("oracle-1")
-    card = await service.get_by_oracle_id("oracle-1", "pt-BR")
+    card = await service.get_by_oracle_id("oracle-1", "pt")
     assert card.name == "Frente // Verso"
     faces = card.model_dump()["card_faces"]
     assert faces[0]["name"] == "Frente"
@@ -199,5 +199,5 @@ async def test_incomplete_face_translation_is_unavailable():
         }
     )
     service = CardSearchService(repository)
-    assert await service.get_by_oracle_id("oracle-1", "pt-BR") is None
+    assert await service.get_by_oracle_id("oracle-1", "pt") is None
     assert await service.search(SearchParams(name="Incompleta")) == []

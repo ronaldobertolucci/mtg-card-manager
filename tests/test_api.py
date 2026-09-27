@@ -58,11 +58,11 @@ def test_get_card_defaults_to_portuguese(card_client) -> None:
     assert response.status_code == 200
     card = response.json()
     assert card["name"] == "Raio"
-    assert card["lang"] == "pt-BR"
+    assert card["lang"] == "pt"
     assert card["oracle_text"] == "Causa 3 pontos de dano."
     assert card["flavor_text"] is None
     assert card["colors"] == ["R"]
-    repository.get_translations.assert_awaited_once_with(["oracle-1"], "pt-BR")
+    repository.get_translations.assert_awaited_once_with(["oracle-1"], "pt")
 
 
 @pytest.mark.parametrize("field", ["name", "name_exact"])

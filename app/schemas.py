@@ -19,7 +19,7 @@ class ResolvedCardResponse(BaseModel):
 
 class SearchParams(BaseModel):
     lang: str = Field(
-        default="pt-BR",
+        default="pt",
         min_length=2,
         max_length=16,
         pattern=r"^[A-Za-z]{2}(?:-[A-Za-z]{2})?$",

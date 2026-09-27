@@ -78,7 +78,7 @@ class FakeTranslationRepository:
 def translation_payload() -> TranslationCreate:
     return TranslationCreate(
         oracle_id="oracle-1",
-        lang="pt-br",
+        lang="pt",
         name="Raio",
         oracle_text="Raio causa 3 pontos de dano a qualquer alvo.",
         type_line="Mágica Instantânea",
@@ -92,12 +92,12 @@ async def test_translation_crud_flow() -> None:
 
     created = await service.create(translation_payload())
     fetched = await service.get(created.id)
-    by_card = await service.get_by_card_language("oracle-1", "pt-br")
-    listed = await service.list(TranslationListParams(oracle_id="oracle-1", lang="pt-br"))
+    by_card = await service.get_by_card_language("oracle-1", "pt")
+    listed = await service.list(TranslationListParams(oracle_id="oracle-1", lang="pt"))
     updated = await service.update(created.id, TranslationUpdate(name="Raio atualizado"))
     await service.delete(created.id)
 
-    assert created.lang == "pt-BR"
+    assert created.lang == "pt"
     assert fetched.id == created.id
     assert by_card.id == created.id
     assert [item.id for item in listed] == [created.id]
@@ -140,7 +140,7 @@ def multiface_payload(**overrides):
     return TranslationCreate(
         **{
             "oracle_id": "oracle-1",
-            "lang": "pt-BR",
+            "lang": "pt",
             "card_faces": [
                 {"face_index": 1, "name": "Verso"},
                 {"face_index": 0, "name": "Frente", "oracle_text": "Texto"},
@@ -160,7 +160,7 @@ async def test_multiface_crud_replaces_faces_and_derives_name():
     assert [face.face_index for face in created.card_faces] == [0, 1]
     assert (await service.get(created.id)).card_faces == created.card_faces
     assert (
-        await service.get_by_card_language("oracle-1", "pt-br")
+        await service.get_by_card_language("oracle-1", "pt")
     ).card_faces == created.card_faces
     assert (await service.list(TranslationListParams()))[0].card_faces == created.card_faces
     updated = await service.update(

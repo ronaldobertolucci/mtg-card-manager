@@ -2,7 +2,7 @@
 
 Microsserviço em Python e FastAPI para ingerir, armazenar e pesquisar dados de cartas
 de Magic: The Gathering. O serviço mantém uma cópia local do Scryfall Oracle Cards e
-permite cadastrar traduções próprias, principalmente em `pt-BR`, sem sobrescrever
+permite cadastrar traduções próprias, principalmente em `pt`, sem sobrescrever
 traduções durante o sincronismo diário. Pesquisas usam a base local; a resolução de
 IDs consulta o Scryfall em tempo real somente para impressões ausentes dessa base.
 
@@ -56,7 +56,7 @@ Armazena somente traduções customizadas:
 {
   "_id": "ObjectId gerado pelo MongoDB",
   "oracle_id": "oracle-id-estavel",
-  "lang": "pt-BR",
+  "lang": "pt",
   "name": "Raio",
   "oracle_text": "Raio causa 3 pontos de dano a qualquer alvo.",
   "type_line": "Mágica Instantânea",
@@ -251,7 +251,7 @@ combinados com lógica `AND`.
 
 | Parâmetro | Tipo | Padrão | Comportamento |
 | --- | --- | --- | --- |
-| `lang` | string | `pt-BR` | Idioma da resposta. Use `en` para dados oficiais ou um idioma com traduções cadastradas. |
+| `lang` | string | `pt` | Idioma da resposta. Use `en` para dados oficiais ou um idioma com traduções cadastradas. |
 | `name` | string | — | Busca parcial por nome, sem diferenciar maiúsculas e minúsculas. |
 | `name_exact` | string | — | Busca pelo nome completo com igualdade (`=`), diferenciando maiúsculas e minúsculas. |
 | `include_tokens` | boolean | `false` | Inclui tokens nos resultados quando `true`. |
@@ -276,7 +276,7 @@ Regras importantes:
 - `colors` usa igualdade exata do array, inclusive a ordem. `colors=U,R` não significa
   “contém azul ou vermelho”.
 - Para custos com chaves, faça URL encoding quando necessário: `{R}` vira `%7BR%7D`.
-- Recomenda-se usar o formato canônico dos idiomas, como `en` e `pt-BR`.
+- Recomenda-se usar o formato canônico dos idiomas, como `en` e `pt`.
 
 ### Legalidade por formato
 
@@ -304,7 +304,7 @@ GET /cards/search?lang=en&format=modern&legality=banned&colors=R
   status, nem mesmo `not_legal`.
 - As respostas da busca e da consulta individual incluem o mapa completo
   `legalities`, inclusive em traduções. Cartas antigas sem o campo retornam `{}`.
-- O idioma padrão continua sendo `pt-BR` e exige tradução cadastrada. Use `lang=en`
+- O idioma padrão continua sendo `pt` e exige tradução cadastrada. Use `lang=en`
   para pesquisar todo o catálogo oficial. A exclusão padrão de tokens é preservada.
 - Os status refletem a última sincronização local; a busca não consulta o Scryfall.
   Sem correspondências, a API mantém o retorno `404`.
@@ -357,11 +357,11 @@ Não há fallback silencioso para inglês. Se nenhuma tradução corresponder, a
 `404 Not Found`, mesmo que existam cartas oficiais com os atributos solicitados.
 
 ```bash
-curl 'http://localhost:8000/cards/search?lang=pt-BR&name=Raio'
+curl 'http://localhost:8000/cards/search?lang=pt&name=Raio'
 ```
 
 ```bash
-curl 'http://localhost:8000/cards/search?lang=pt-BR&colors=R&cmc=1&limit=5'
+curl 'http://localhost:8000/cards/search?lang=pt&colors=R&cmc=1&limit=5'
 ```
 
 ### Busca por faces
@@ -384,7 +384,7 @@ curl 'http://localhost:8000/cards/search?lang=pt-BR&colors=R&cmc=1&limit=5'
 
 ```bash
 curl 'http://localhost:8000/cards/search?lang=en&oracle_text=Flying&power=4'
-curl 'http://localhost:8000/cards/search?lang=pt-BR&oracle_text=Voar&power=4'
+curl 'http://localhost:8000/cards/search?lang=pt&oracle_text=Voar&power=4'
 ```
 
 ### Resposta da busca
@@ -394,7 +394,7 @@ curl 'http://localhost:8000/cards/search?lang=pt-BR&oracle_text=Voar&power=4'
   {
     "id": "id-da-impressao-atual",
     "oracle_id": "oracle-id-estavel",
-    "lang": "pt-BR",
+    "lang": "pt",
     "name": "Raio",
     "oracle_text": "Raio causa 3 pontos de dano a qualquer alvo.",
     "type_line": "Mágica Instantânea",
@@ -426,7 +426,7 @@ Retorna um único objeto de carta, com os mesmos campos da busca. O `oracle_id`
 é a identidade estável da carta, não o `id` de uma impressão. Aceita letras,
 números e hífens, com até 100 caracteres.
 
-O parâmetro opcional `lang` tem padrão `pt-BR`. Use `lang=en` para consultar
+O parâmetro opcional `lang` tem padrão `pt`. Use `lang=en` para consultar
 os dados oficiais em inglês. Para outros idiomas, é necessário existir uma
 tradução; não há fallback para inglês.
 
@@ -443,8 +443,8 @@ curl 'http://localhost:8000/cards/oracle-id-estavel?lang=en'
 ## CRUD de traduções
 
 Traduções em inglês não podem ser cadastradas porque `oracle_cards` já contém o texto
-oficial em inglês. Idiomas recebidos pelo CRUD são normalizados, por exemplo `pt-br`
-vira `pt-BR`.
+oficial em inglês. Idiomas recebidos pelo CRUD são normalizados, por exemplo `PT`
+vira `pt`.
 
 ### Criar tradução
 
@@ -456,7 +456,7 @@ Content-Type: application/json
 ```json
 {
   "oracle_id": "oracle-id-obtido-na-busca",
-  "lang": "pt-BR",
+  "lang": "pt",
   "name": "Raio",
   "oracle_text": "Raio causa 3 pontos de dano a qualquer alvo.",
   "type_line": "Mágica Instantânea",
@@ -469,7 +469,7 @@ Campos:
 | Campo | Obrigatório | Regra |
 | --- | --- | --- |
 | `oracle_id` | sim | Deve existir em `oracle_cards`; aceita letras, números e hífens. |
-| `lang` | sim | Código como `pt` ou `pt-BR`; `en` é rejeitado. |
+| `lang` | sim | Código como `pt` ou `es`; `en` é rejeitado. |
 | `name` | cartas comuns | Entre 1 e 300 caracteres; em multiface, é derivado das faces. |
 | `oracle_text` | não | Texto traduzido ou `null`. |
 | `type_line` | não | Linha de tipo traduzida ou `null`. |
@@ -491,7 +491,7 @@ entradas em `card_faces`, os textos devem ser enviados exclusivamente por face:
 ```json
 {
   "oracle_id": "oracle-id-multiface",
-  "lang": "pt-BR",
+  "lang": "pt",
   "card_faces": [
     {"face_index": 0, "name": "Frente", "oracle_text": "Texto da frente."},
     {"face_index": 1, "name": "Verso", "type_line": "Criatura — Lobisomem"}
@@ -531,7 +531,7 @@ Parâmetros opcionais:
 | `offset` | `0` | De 0 a 100.000 registros ignorados. |
 
 ```bash
-curl 'http://localhost:8000/translations?lang=pt-BR&limit=50&offset=0'
+curl 'http://localhost:8000/translations?lang=pt&limit=50&offset=0'
 ```
 
 Uma consulta sem resultados retorna `200 OK` com `[]`.
@@ -558,7 +558,7 @@ GET /translations/by-card/{oracle_id}/{lang}
 ```
 
 ```bash
-curl 'http://localhost:8000/translations/by-card/oracle-id-estavel/pt-BR'
+curl 'http://localhost:8000/translations/by-card/oracle-id-estavel/pt'
 ```
 
 Retorna `404 Not Found` quando o par não possui tradução.

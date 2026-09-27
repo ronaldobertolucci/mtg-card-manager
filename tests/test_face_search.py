@@ -68,7 +68,7 @@ async def catalog():
             [
                 {
                     "oracle_id": "multi",
-                    "lang": "pt-BR",
+                    "lang": "pt",
                     "name": "Frente // Verso",
                     "card_faces": [
                         {
@@ -87,7 +87,7 @@ async def catalog():
                 },
                 {
                     "oracle_id": "normal",
-                    "lang": "pt-BR",
+                    "lang": "pt",
                     "name": "Normal",
                     "oracle_text": "Voar",
                     "type_line": "Criatura",
@@ -163,7 +163,7 @@ async def test_english_faces(catalog, filters, expected):
 )
 async def test_translated_faces_keep_mechanics_on_matching_index(catalog, filters, expected):
     _, service = catalog
-    result = await service.search(SearchParams(lang="pt-BR", **filters))
+    result = await service.search(SearchParams(lang="pt", **filters))
     assert {card.oracle_id for card in result} == expected
 
 
@@ -172,7 +172,7 @@ async def test_pagination_after_face_matching_and_no_duplicates(catalog):
     database, service = catalog
     # The multiface card sorts first but fails the requested face's mechanics.
     result = await service.search(
-        SearchParams(lang="pt-BR", oracle_text="Voar", power="1", limit=1)
+        SearchParams(lang="pt", oracle_text="Voar", power="1", limit=1)
     )
     assert [card.oracle_id for card in result] == ["normal"]
     await database.oracle_cards.update_one(
@@ -185,7 +185,7 @@ async def test_pagination_after_face_matching_and_no_duplicates(catalog):
     assert [card.oracle_id for card in page] == ["normal"]
 
 
-@pytest.mark.parametrize("lang", ["en", "pt-BR"])
+@pytest.mark.parametrize("lang", ["en", "pt"])
 @pytest.mark.parametrize("name_filter", ["name", "name_exact"])
 async def test_same_name_tokens_are_excluded_before_pagination(catalog, lang, name_filter):
     database, service = catalog
@@ -199,7 +199,7 @@ async def test_same_name_tokens_are_excluded_before_pagination(catalog, lang, na
              "name": "Ornithopter", "layout": layout}
         )
         await database.translations.insert_one(
-            {"oracle_id": identity, "lang": "pt-BR", "name": "Ornithopter"}
+            {"oracle_id": identity, "lang": "pt", "name": "Ornithopter"}
         )
     filters = {name_filter: "Ornithopter"}
     result = await service.search(SearchParams(lang=lang, limit=1, **filters))
@@ -211,7 +211,7 @@ async def test_same_name_tokens_are_excluded_before_pagination(catalog, lang, na
     assert (await service.get_by_oracle_id("a-token", lang)).oracle_id == "a-token"
 
 
-@pytest.mark.parametrize("lang,text", [("en", "Flying"), ("pt-BR", "Voar")])
+@pytest.mark.parametrize("lang,text", [("en", "Flying"), ("pt", "Voar")])
 async def test_legality_with_faces_translation_and_pagination(catalog, lang, text):
     database, service = catalog
     await database.oracle_cards.update_one(

@@ -35,7 +35,7 @@ def test_multiface_create_response_and_invalid_patch(translation_client):
     client, repository = translation_client
     payload = {
         "oracle_id": "oracle-1",
-        "lang": "pt-BR",
+        "lang": "pt",
         "card_faces": [{"face_index": 0, "name": "Frente"}, {"face_index": 1, "name": "Verso"}],
     }
     response = client.post("/translations", json=payload)
@@ -78,7 +78,7 @@ def test_invalid_card_structure_returns_422(translation_client, card, payload):
     client, repository = translation_client
     repository.get_oracle_card.return_value = card
     response = client.post(
-        "/translations", json={"oracle_id": "oracle-1", "lang": "pt-BR", **payload}
+        "/translations", json={"oracle_id": "oracle-1", "lang": "pt", **payload}
     )
     assert response.status_code == 422
     repository.create.assert_not_awaited()

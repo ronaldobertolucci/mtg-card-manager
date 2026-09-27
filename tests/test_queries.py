@@ -56,7 +56,7 @@ async def test_translation_name_filters(filters, expected) -> None:
     matches = await repository.search_translation_matches(SearchParams(**filters))
 
     assert matches == {"oracle-1": None}
-    assert collection.find.call_args.args[0] == {"lang": "pt-BR", "name": expected}
+    assert collection.find.call_args.args[0] == {"lang": "pt", "name": expected}
 
 
 def test_cmc_range_query() -> None:
@@ -66,7 +66,7 @@ def test_cmc_range_query() -> None:
 
 def test_localized_card_query_uses_scryfall_oracle_id_not_printing_id() -> None:
     query = _oracle_card_filter(
-        SearchParams(lang="pt-BR", colors="U"),
+        SearchParams(lang="pt", colors="U"),
         {"oracle-1": None, "oracle-2": None},
     )
 
@@ -129,7 +129,7 @@ def test_name_exact_is_a_text_filter():
     assert SearchParams(name_exact="Raio").has_text_filters
 
 
-@pytest.mark.parametrize("lang,matches", [("en", None), ("pt-BR", {"oracle-1": [1]})])
+@pytest.mark.parametrize("lang,matches", [("en", None), ("pt", {"oracle-1": [1]})])
 def test_legality_filters_whole_card_alongside_face_filters(lang, matches):
     query = _oracle_card_filter(
         SearchParams(lang=lang, format="vintage", oracle_text="Flying", power="4"), matches
