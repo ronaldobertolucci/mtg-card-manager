@@ -93,11 +93,11 @@ Serviços e recursos criados:
 | Volume | `mtg-card-manager-db-data` |
 | Rede | `mtg-card-manager-network` |
 
-A API fica disponível em `http://localhost:8000`.
+A API fica disponível em `http://localhost:8002`.
 
-- Swagger UI: `http://localhost:8000/docs`
-- OpenAPI: `http://localhost:8000/openapi.json`
-- Health check: `GET http://localhost:8000/health`
+- Swagger UI: `http://localhost:8002/docs`
+- OpenAPI: `http://localhost:8002/openapi.json`
+- Health check: `GET http://localhost:8002/health`
 
 ### Executar a sincronização manualmente
 
@@ -185,7 +185,7 @@ MONGODB_URI=mongodb://localhost:27017 python sync_scryfall.py
 `POST /cards/resolve` recebe IDs de impressões do Scryfall e retorna seus Oracle IDs:
 
 ```bash
-curl -X POST http://localhost:8000/cards/resolve \
+curl -X POST http://localhost:8002/cards/resolve \
   -H 'Content-Type: application/json' \
   -d '{"ids": ["scryfall-id-1", "scryfall-id-2"]}'
 ```
@@ -315,13 +315,13 @@ Quando `lang=en`, filtros textuais e mecânicos são aplicados em `oracle_cards`
 considerando os campos principais e as faces:
 
 ```bash
-curl 'http://localhost:8000/cards/search?lang=en&name=Lightning%20Bolt'
+curl 'http://localhost:8002/cards/search?lang=en&name=Lightning%20Bolt'
 ```
 
 Para exigir o nome completo com igualdade, use `name_exact`:
 
 ```bash
-curl 'http://localhost:8000/cards/search?lang=en&name_exact=Lightning%20Bolt'
+curl 'http://localhost:8002/cards/search?lang=en&name_exact=Lightning%20Bolt'
 ```
 
 O nome exato pode ser compartilhado por uma carta e um token, como `Ornithopter`.
@@ -334,11 +334,11 @@ direta por `oracle_id` continuam permitindo acesso aos tokens.
 Se `name` e `name_exact` forem informados juntos, ambos devem corresponder (`AND`).
 
 ```bash
-curl 'http://localhost:8000/cards/search?lang=en&type_line=Creature&cmc_gte=2&cmc_lte=4&limit=20'
+curl 'http://localhost:8002/cards/search?lang=en&type_line=Creature&cmc_gte=2&cmc_lte=4&limit=20'
 ```
 
 ```bash
-curl 'http://localhost:8000/cards/search?lang=en&colors=R&mana_cost=%7BR%7D&cmc=1'
+curl 'http://localhost:8002/cards/search?lang=en&colors=R&mana_cost=%7BR%7D&cmc=1'
 ```
 
 ### Busca traduzida
@@ -357,11 +357,11 @@ Não há fallback silencioso para inglês. Se nenhuma tradução corresponder, a
 `404 Not Found`, mesmo que existam cartas oficiais com os atributos solicitados.
 
 ```bash
-curl 'http://localhost:8000/cards/search?lang=pt&name=Raio'
+curl 'http://localhost:8002/cards/search?lang=pt&name=Raio'
 ```
 
 ```bash
-curl 'http://localhost:8000/cards/search?lang=pt&colors=R&cmc=1&limit=5'
+curl 'http://localhost:8002/cards/search?lang=pt&colors=R&cmc=1&limit=5'
 ```
 
 ### Busca por faces
@@ -383,8 +383,8 @@ curl 'http://localhost:8000/cards/search?lang=pt&colors=R&cmc=1&limit=5'
   única vez, mesmo quando várias faces correspondem; a resposta inclui todas as faces.
 
 ```bash
-curl 'http://localhost:8000/cards/search?lang=en&oracle_text=Flying&power=4'
-curl 'http://localhost:8000/cards/search?lang=pt&oracle_text=Voar&power=4'
+curl 'http://localhost:8002/cards/search?lang=en&oracle_text=Flying&power=4'
+curl 'http://localhost:8002/cards/search?lang=pt&oracle_text=Voar&power=4'
 ```
 
 ### Resposta da busca
@@ -431,7 +431,7 @@ os dados oficiais em inglês. Para outros idiomas, é necessário existir uma
 tradução; não há fallback para inglês.
 
 ```bash
-curl 'http://localhost:8000/cards/oracle-id-estavel?lang=en'
+curl 'http://localhost:8002/cards/oracle-id-estavel?lang=en'
 ```
 
 | Status | Motivo |
@@ -531,7 +531,7 @@ Parâmetros opcionais:
 | `offset` | `0` | De 0 a 100.000 registros ignorados. |
 
 ```bash
-curl 'http://localhost:8000/translations?lang=pt&limit=50&offset=0'
+curl 'http://localhost:8002/translations?lang=pt&limit=50&offset=0'
 ```
 
 Uma consulta sem resultados retorna `200 OK` com `[]`.
@@ -545,7 +545,7 @@ GET /translations/{translation_id}
 O `translation_id` é o `ObjectId` da tradução, não o `oracle_id` da carta.
 
 ```bash
-curl 'http://localhost:8000/translations/66e57fd92d4ca2713718c123'
+curl 'http://localhost:8002/translations/66e57fd92d4ca2713718c123'
 ```
 
 - `400 Bad Request`: ID não é um `ObjectId` válido.
@@ -558,7 +558,7 @@ GET /translations/by-card/{oracle_id}/{lang}
 ```
 
 ```bash
-curl 'http://localhost:8000/translations/by-card/oracle-id-estavel/pt'
+curl 'http://localhost:8002/translations/by-card/oracle-id-estavel/pt'
 ```
 
 Retorna `404 Not Found` quando o par não possui tradução.
