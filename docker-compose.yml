@@ -7,7 +7,7 @@ services:
       MONGODB_URI: mongodb://mtg-card-manager-db:27017
       MONGODB_DATABASE: card_manager
     ports:
-      - "8000:8000"
+      - "8002:8002"
     depends_on:
       mtg-card-manager-db:
         condition: service_healthy
