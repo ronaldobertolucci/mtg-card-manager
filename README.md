@@ -217,8 +217,8 @@ Erros de domínio usam `detail` textual. No CRUD, `422` também pode trazer text
 estrutura de tradução inválida. O OpenAPI inclui os erros específicos de cada rota,
 inclusive `409` de tradução duplicada e `502` na resolução via Scryfall.
 
-A busca retorna uma lista, exige pelo menos um filtro e responde `404` quando
-não há resultados.
+A busca retorna um objeto paginado com `items`, `limit`, `offset` e `hasNext`.
+Filtros são opcionais, e páginas vazias retornam `200` com `items: []` e `hasNext: false`.
 
 ### Resolver IDs de impressões
 
@@ -284,8 +284,15 @@ Resposta `200 OK`:
 GET /cards/search
 ```
 
-É obrigatório informar pelo menos um filtro de busca. Os filtros informados são
-combinados com lógica `AND`.
+Os filtros são opcionais. Quando informados, são combinados com lógica `AND`.
+Sem filtros, `lang=en` abre o catálogo oficial; o padrão `lang=pt` abre somente
+as traduções válidas. Não é necessário usar `cmc_gte=0`, e cartas sem CMC informado
+continuam elegíveis. A exclusão padrão de tokens é preservada.
+
+```http
+GET /cards/search?lang=en&limit=50&offset=0
+GET /cards/search?lang=pt&limit=50&offset=0
+```
 
 ### Parâmetros
 
@@ -307,7 +314,7 @@ combinados com lógica `AND`.
 | `format` | string | — | Formato do Scryfall; sozinho seleciona `legal,restricted`. |
 | `legality` | string | `legal,restricted` com formato | Status separados por vírgula; exige `format`. |
 | `limit` | inteiro | `50` | Quantidade de resultados, entre 1 e 200. |
-| `offset` | inteiro | `0` | Quantidade ignorada para paginação, entre 0 e 100.000. |
+| `offset` | inteiro | `0` | Quantidade de cartas válidas ignoradas para paginação, entre 0 e 100.000. |
 
 Regras importantes:
 
@@ -334,7 +341,7 @@ GET /cards/search?lang=en&format=modern&legality=banned&colors=R
 - Vários status usam `OR` (separados por vírgula); formato/status e os demais filtros usam `AND`.
 - Formatos e status aceitam maiúsculas e espaços nas extremidades; status repetidos
   são deduplicados. Valores vazios ou desconhecidos retornam `400`.
-- `legality` exige `format`. Apenas `format` já satisfaz o filtro obrigatório.
+- `legality` exige `format`. `format` também pode ser usado sozinho.
 - Formatos suportados: `standard`, `future`, `historic`, `timeless`, `gladiator`,
   `pioneer`, `explorer`, `modern`, `legacy`, `pauper`, `vintage`, `penny`, `commander`,
   `oathbreaker`, `standardbrawl`, `brawl`, `alchemy`, `paupercommander`, `duel`,
@@ -347,7 +354,7 @@ GET /cards/search?lang=en&format=modern&legality=banned&colors=R
 - O idioma padrão continua sendo `pt` e exige tradução cadastrada. Use `lang=en`
   para pesquisar todo o catálogo oficial. A exclusão padrão de tokens é preservada.
 - Os status refletem a última sincronização local; a busca não consulta o Scryfall.
-  Sem correspondências, a API mantém o retorno `404`.
+  Sem correspondências, a busca retorna `200` com `items: []` e `hasNext: false`.
 
 ### Busca em inglês
 
@@ -391,10 +398,14 @@ Quando `lang` é diferente de `en`, a API exige uma tradução no idioma solicit
 3. Busca os dados mecânicos correspondentes em `oracle_cards`.
 4. Aplica os filtros mecânicos nas mesmas faces identificadas pelo `face_index`.
    Sem filtros textuais por face, consulta os atributos principais ou uma mesma face.
-5. Sobrescreve os campos textuais com a tradução.
+5. Descarta traduções indisponíveis ou estruturalmente inválidas e sobrescreve os
+   campos textuais com as traduções válidas.
+6. Conta somente resultados válidos para aplicar `offset`, preencher a página e
+   determinar `hasNext`.
 
-Não há fallback silencioso para inglês. Se nenhuma tradução corresponder, a API retorna
-`404 Not Found`, mesmo que existam cartas oficiais com os atributos solicitados.
+Não há fallback silencioso para inglês. Se nenhuma tradução válida corresponder,
+a busca retorna `200 OK` com `items: []` e `hasNext: false`, mesmo que existam
+cartas oficiais com os atributos solicitados.
 
 ```bash
 curl 'http://localhost:8002/cards/search?lang=pt&name=Raio'
@@ -429,32 +440,55 @@ curl 'http://localhost:8002/cards/search?lang=pt&oracle_text=Voar&power=4'
 
 ### Resposta da busca
 
+A resposta é um objeto paginado. Exemplo com campos da carta abreviados:
+
 ```json
-[
-  {
-    "id": "id-da-impressao-atual",
-    "oracle_id": "oracle-id-estavel",
-    "lang": "pt",
-    "name": "Raio",
-    "oracle_text": "Raio causa 3 pontos de dano a qualquer alvo.",
-    "type_line": "Mágica Instantânea",
-    "flavor_text": null,
-    "colors": ["R"],
-    "mana_cost": "{R}",
-    "cmc": 1,
-    "power": null,
-    "toughness": null
-  }
-]
+{
+  "items": [
+    {
+      "id": "id-da-impressao-atual",
+      "oracle_id": "oracle-id-estavel",
+      "lang": "pt",
+      "printing_lang": "en",
+      "name": "Raio",
+      "colors": ["R"],
+      "color_identity": ["R"],
+      "cmc": 1
+    }
+  ],
+  "limit": 50,
+  "offset": 0,
+  "hasNext": false
+}
 ```
 
-Possíveis respostas:
+- `items` contém as cartas válidas da página, no mesmo DTO da consulta individual.
+- `limit` e `offset` refletem os parâmetros solicitados, incluindo seus padrões.
+- `offset` conta resultados válidos, não documentos candidatos descartados.
+- `hasNext` é `true` somente se existe outra carta válida além da página.
+- Uma página com exatamente `limit` itens ainda pode ter `hasNext: false`.
+- Traduções inválidas entre resultados não encurtam páginas intermediárias nem
+  causam término antecipado. Uma tradução que desaparece durante a leitura é
+  tratada como indisponível.
+- Sem resultados ou com deslocamento além do fim, a resposta é `200`, com
+  `items: []` e `hasNext: false`, preservando o `offset` solicitado.
+- A ordenação permanece pelo nome oficial e pelo `_id` como desempate.
+  Não há total de resultados nesta resposta.
+
+Para avançar, mantenha os filtros e aumente `offset` pelo `limit` solicitado
+quando `hasNext` for `true`. Consumidores da resposta antiga em lista devem
+passar a ler `response.items` e encerrar a navegação por `response.hasNext`.
+
+Na busca traduzida, os candidatos são examinados em lotes de até 200 documentos
+a partir do início da consulta para contar corretamente os resultados válidos.
+Isso evita carregar todas as cartas completas em memória, mas deslocamentos altos
+podem exigir mais leituras. O mapeamento de traduções candidatas continua sendo
+carregado pela busca de traduções.
 
 | Status | Motivo |
 | --- | --- |
-| `200 OK` | Uma ou mais cartas encontradas. |
-| `400 Bad Request` | Filtros ausentes, inválidos ou conflitantes. |
-| `404 Not Found` | Nenhuma carta ou tradução correspondente. |
+| `200 OK` | Página retornada, inclusive vazia. |
+| `400 Bad Request` | Filtros ou parâmetros de paginação inválidos ou conflitantes. |
 
 ### Consultar carta pelo oracle_id
 
@@ -462,7 +496,7 @@ Possíveis respostas:
 GET /cards/{oracle_id}
 ```
 
-Retorna um único objeto de carta, com os mesmos campos da busca. O `oracle_id`
+Retorna um único objeto de carta, com os mesmos campos de cada item da busca. O `oracle_id`
 é a identidade estável da carta, não o `id` de uma impressão. Aceita letras,
 números e hífens, com até 100 caracteres.
 

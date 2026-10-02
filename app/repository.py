@@ -159,8 +159,14 @@ class MongoCardRepository:
             else:
                 indices = [
                     face["face_index"]
-                    for face in document.get("card_faces") or []
-                    if matches_text(face)
+                    for face in (
+                        document["card_faces"]
+                        if isinstance(document.get("card_faces"), list) else []
+                    )
+                    if isinstance(face, dict)
+                    and type(face.get("face_index")) is int
+                    and face["face_index"] >= 0
+                    and matches_text(face)
                 ]
                 if indices:
                     matches[document["oracle_id"]] = indices

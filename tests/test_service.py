@@ -56,12 +56,12 @@ async def test_non_english_text_search_uses_two_steps_and_merges_translation() -
     result = await service.search(SearchParams(lang="pt", name="raio"))
 
     assert repository.received_ids == {"oracle-1": None}
-    assert result[0].id == "card-1"
-    assert result[0].oracle_id == "oracle-1"
-    assert result[0].name == "Raio"
-    assert result[0].oracle_text == "Causa 3 pontos de dano."
-    assert result[0].flavor_text is None
-    assert result[0].lang == "pt"
+    assert result.items[0].id == "card-1"
+    assert result.items[0].oracle_id == "oracle-1"
+    assert result.items[0].name == "Raio"
+    assert result.items[0].oracle_text == "Causa 3 pontos de dano."
+    assert result.items[0].flavor_text is None
+    assert result.items[0].lang == "pt"
 
 
 @pytest.mark.asyncio
@@ -73,7 +73,7 @@ async def test_english_search_does_not_query_translations() -> None:
 
     assert repository.received_ids is None
     assert repository.translation_searches == 0
-    assert result[0].name == "Lightning Bolt"
+    assert result.items[0].name == "Lightning Bolt"
 
 
 @pytest.mark.asyncio
@@ -85,7 +85,7 @@ async def test_non_english_attribute_search_requires_translation() -> None:
 
     assert repository.translation_searches == 1
     assert repository.received_ids == {"oracle-1": None}
-    assert result[0].name == "Raio"
+    assert result.items[0].name == "Raio"
 
 
 class NoTranslationRepository(StubRepository):
@@ -101,7 +101,8 @@ async def test_non_english_search_without_translations_returns_no_cards() -> Non
 
     result = await service.search(SearchParams(lang="pt", colors="U"))
 
-    assert result == []
+    assert result.items == []
+    assert not result.has_next
     assert repository.translation_searches == 1
     assert repository.received_ids is None
 
@@ -119,7 +120,8 @@ async def test_does_not_fall_back_to_english_if_translation_disappears() -> None
 
     result = await service.search(SearchParams(lang="pt", colors="R"))
 
-    assert result == []
+    assert result.items == []
+    assert not result.has_next
 
 
 class MultifaceRepository(StubRepository):
@@ -183,7 +185,7 @@ async def test_multiface_localized_get_and_search_preserve_mechanics():
         for field in ("mana_cost", "colors", "power", "toughness"):
             assert face[field] == original["card_faces"][index][field]
     assert original["card_faces"][0]["name"] == "Front"
-    assert (await service.search(SearchParams(name="Frente")))[0] == card
+    assert (await service.search(SearchParams(name="Frente"))).items[0] == card
     english = await service.get_by_oracle_id("oracle-1", "en")
     for actual, expected in zip(
         english.model_dump()["card_faces"], original["card_faces"], strict=True
@@ -204,4 +206,4 @@ async def test_incomplete_face_translation_is_unavailable():
     )
     service = CardSearchService(repository)
     assert await service.get_by_oracle_id("oracle-1", "pt") is None
-    assert await service.search(SearchParams(name="Incompleta")) == []
+    assert (await service.search(SearchParams(name="Incompleta"))).items == []

@@ -103,22 +103,6 @@ class SearchParams(BaseModel):
             raise ValueError("legality requires format")
         if self.format is not None and self.legality is None:
             self.legality = [Legality.LEGAL, Legality.RESTRICTED]
-        filters = (
-            self.format,
-            self.name,
-            self.name_exact,
-            self.oracle_text,
-            self.type_line,
-            self.colors,
-            self.mana_cost,
-            self.cmc,
-            self.cmc_gte,
-            self.cmc_lte,
-            self.power,
-            self.toughness,
-        )
-        if all(value is None for value in filters):
-            raise ValueError("at least one search filter is required")
         if self.cmc is not None and (self.cmc_gte is not None or self.cmc_lte is not None):
             raise ValueError("cmc cannot be combined with cmc_gte or cmc_lte")
         if self.cmc_gte is not None and self.cmc_lte is not None and self.cmc_gte > self.cmc_lte:
@@ -205,6 +189,15 @@ class CardResponse(CardContract):
     )
     card_faces: list[CardFaceResponse] = Field(
         default_factory=list, description="Ordered faces; [] when no faces are supplied."
+    )
+
+
+class CardSearchResponse(CardContract):
+    items: list[CardResponse]
+    limit: int
+    offset: int = Field(description="Number of valid matching cards skipped.")
+    has_next: bool = Field(
+        serialization_alias="hasNext", description="Whether another valid matching card exists."
     )
 
 

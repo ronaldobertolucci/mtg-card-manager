@@ -6,6 +6,7 @@ from app.database import get_database
 from app.repository import MongoCardRepository
 from app.schemas import (
     CardResponse,
+    CardSearchResponse,
     ErrorResponse,
     ResolveCardsRequest,
     ResolvedCardResponse,
@@ -25,21 +26,21 @@ def get_service(request: Request) -> CardSearchService:
 
 @router.get(
     "/search",
-    response_model=list[CardResponse],
-    description="Public search. No authentication required. Non-English requires translation.",
+    response_model=CardSearchResponse,
+    description=(
+        "Public search. No authentication required. Filters are optional. "
+        "Non-English requires valid translation. Offset counts valid results; "
+        "empty pages return 200 with items=[] and hasNext=false."
+    ),
     responses={
         400: {"model": ValidationErrorResponse, "description": "Invalid or conflicting filters."},
-        404: {"model": ErrorResponse, "description": "No matching cards or valid translations."},
     },
 )
 async def search_cards(
     query: Annotated[SearchParams, Query()],
     service: Annotated[CardSearchService, Depends(get_service)],
-) -> list[CardResponse]:
-    cards = await service.search(query)
-    if not cards:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No cards found")
-    return cards
+) -> CardSearchResponse:
+    return await service.search(query)
 
 
 @router.post(

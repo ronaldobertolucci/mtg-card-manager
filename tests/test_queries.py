@@ -84,7 +84,6 @@ def test_localized_card_query_uses_scryfall_oracle_id_not_printing_id() -> None:
 @pytest.mark.parametrize(
     "values",
     [
-        {},
         {"name": "x", "cmc": 2, "cmc_gte": 1},
         {"name": "x", "cmc_gte": 5, "cmc_lte": 2},
         {"colors": "R,R"},

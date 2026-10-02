@@ -71,7 +71,7 @@ def test_search_accepts_name_filters(card_client, field) -> None:
     repository.search_oracle_cards.return_value = [repository.get_by_oracle_id.return_value]
     response = client.get("/cards/search", params={"lang": "en", field: "Lightning Bolt"})
     assert response.status_code == 200
-    assert response.json()[0]["name"] == "Lightning Bolt"
+    assert response.json()["items"][0]["name"] == "Lightning Bolt"
     params = repository.search_oracle_cards.call_args.args[0]
     assert getattr(params, field) == "Lightning Bolt"
 
@@ -143,14 +143,14 @@ def test_invalid_query_returns_400() -> None:
     app.dependency_overrides[get_service] = lambda: CardSearchService(EmptyRepository())
     try:
         with TestClient(app) as client:
-            response = client.get("/cards/search")
+            response = client.get("/cards/search?limit=0")
     finally:
         app.dependency_overrides.clear()
         app.router.lifespan_context = original_lifespan
     assert response.status_code == 400
 
 
-def test_no_matches_returns_404() -> None:
+def test_no_matches_returns_empty_page() -> None:
     original_lifespan = app.router.lifespan_context
     app.router.lifespan_context = no_database_lifespan
     app.dependency_overrides[get_service] = lambda: CardSearchService(EmptyRepository())
@@ -160,7 +160,8 @@ def test_no_matches_returns_404() -> None:
     finally:
         app.dependency_overrides.clear()
         app.router.lifespan_context = original_lifespan
-    assert response.status_code == 404
+    assert response.status_code == 200
+    assert response.json() == {"items": [], "limit": 50, "offset": 0, "hasNext": False}
 
 
 @pytest.mark.parametrize(
@@ -183,7 +184,7 @@ def test_search_legality_contract(card_client, legality, expected):
     params = repository.search_oracle_cards.call_args.args[0]
     assert params.format == "vintage"
     assert params.legality == expected
-    assert response.json()[0]["legalities"] == {
+    assert response.json()["items"][0]["legalities"] == {
         "vintage": "restricted", "future_format": "banned"
     }
 
@@ -272,7 +273,7 @@ def test_multiface_contract_in_search_and_translated_lookup(card_client):
     card = client.get("/cards/oracle-1?lang=pt").json()
     search = client.get("/cards/search?name=Frente&lang=pt")
     assert search.status_code == 200
-    assert search.json() == [card]
+    assert search.json() == {"items": [card], "limit": 50, "offset": 0, "hasNext": False}
     assert card["lang"] == "pt" and card["printing_lang"] == "en"
     assert card["color_identity"] == ["U"]
     assert card["image_uris"] is None
@@ -296,7 +297,7 @@ def test_openapi_documents_dto_public_reads_and_actual_errors(card_client):
     assert "additionalProperties" not in models["CardResponse"]
     assert "normal" in models["CardImages"]["properties"]
     expected = {
-        ("/cards/search", "get"): {"200", "400", "404"},
+        ("/cards/search", "get"): {"200", "400"},
         ("/cards/{oracle_id}", "get"): {"200", "404", "422"},
         ("/cards/resolve", "post"): {"200", "404", "422", "502"},
         ("/translations", "post"): {"201", "404", "409", "422"},
@@ -319,3 +320,38 @@ def test_openapi_documents_dto_public_reads_and_actual_errors(card_client):
     _, repository = card_client
     repository.get_by_oracle_id.return_value = None
     ErrorResponse.model_validate(client.get("/cards/missing").json())
+
+
+@pytest.mark.parametrize("lang", ["en", "pt"])
+def test_catalog_without_filters_returns_page(card_client, lang):
+    client, repository = card_client
+    repository.search_oracle_cards.return_value = [repository.get_by_oracle_id.return_value]
+    repository.search_translation_matches.return_value = {"oracle-1": None}
+    response = client.get("/cards/search", params={"lang": lang, "limit": 1})
+    assert response.status_code == 200
+    page = response.json()
+    assert len(page["items"]) == 1
+    assert page["items"][0]["lang"] == lang
+    assert page["items"][0]["cmc"] is None
+    assert page["limit"] == 1 and page["offset"] == 0 and page["hasNext"] is False
+    query = repository.search_oracle_cards.call_args.args[0]
+    assert query.cmc is query.cmc_gte is query.cmc_lte is None
+
+
+def test_search_openapi_describes_pagination(card_client):
+    client, _ = card_client
+    schema = client.get("/openapi.json").json()
+    response = schema["paths"]["/cards/search"]["get"]["responses"]["200"]
+    assert response["content"]["application/json"]["schema"]["$ref"].endswith("/CardSearchResponse")
+    model = schema["components"]["schemas"]["CardSearchResponse"]
+    assert set(model["required"]) == {"items", "limit", "offset", "hasNext"}
+    assert model["properties"]["items"]["items"]["$ref"].endswith("/CardResponse")
+
+
+@pytest.mark.parametrize("query", [
+    {"limit": 201}, {"limit": 0}, {"offset": -1}, {"offset": 100001},
+])
+def test_pagination_bounds_remain_enforced(card_client, query):
+    client, repository = card_client
+    assert client.get("/cards/search", params=query).status_code == 400
+    repository.search_oracle_cards.assert_not_awaited()
