@@ -212,3 +212,110 @@ def test_legalities_are_preserved_in_translation(card_client):
 def test_missing_legalities_returns_empty_map(card_client):
     client, _ = card_client
     assert client.get("/cards/oracle-1").json()["legalities"] == {}
+
+
+@pytest.mark.parametrize("lang", ["en", "pt"])
+def test_public_card_contract_preserves_printing_and_hides_source_extras(card_client, lang):
+    client, repository = card_client
+    source = repository.get_by_oracle_id.return_value
+    source.update({
+        "lang": "ja", "layout": "normal", "color_identity": ["R"],
+        "image_uris": {"normal": "https://example.test/card.jpg", "internal": "hidden"},
+        "internal_metadata": {"secret": True},
+    })
+    # Deliberately no authentication headers or cookies.
+    response = client.get("/cards/oracle-1", params={"lang": lang})
+    assert response.status_code == 200
+    card = response.json()
+    assert card["lang"] == lang
+    assert card["printing_lang"] == "ja"
+    assert source["lang"] == "ja"
+    assert card["layout"] == "normal"
+    assert card["color_identity"] == ["R"]
+    assert card["image_uris"]["normal"] == "https://example.test/card.jpg"
+    assert card["image_uris"]["png"] is None
+    assert "internal" not in card["image_uris"]
+    assert "internal_metadata" not in card
+    assert card["card_faces"] == []
+
+
+def test_unknown_colors_are_distinct_from_colorless(card_client):
+    client, repository = card_client
+    source = repository.get_by_oracle_id.return_value
+    source.pop("colors")
+    unknown = client.get("/cards/oracle-1?lang=en").json()
+    for field in ("colors", "color_identity", "layout", "printing_lang", "image_uris"):
+        assert field in unknown and unknown[field] is None
+    source.update(colors=[], color_identity=[])
+    known = client.get("/cards/oracle-1?lang=en").json()
+    assert known["colors"] == known["color_identity"] == []
+
+
+def test_multiface_contract_in_search_and_translated_lookup(card_client):
+    client, repository = card_client
+    source = repository.get_by_oracle_id.return_value
+    source.update({
+        "lang": "en", "layout": "transform", "color_identity": ["U"],
+        "card_faces": [
+            {"name": "Front", "mana_cost": "{U}", "colors": ["U"],
+             "image_uris": {"normal": "https://example.test/front.jpg"}},
+            {"name": "Back", "mana_cost": "", "colors": [], "power": "*",
+             "image_uris": {"normal": "https://example.test/back.jpg"}},
+        ],
+    })
+    repository.get_translations.return_value = {"oracle-1": {
+        "card_faces": [{"face_index": 1, "name": "Verso"},
+                       {"face_index": 0, "name": "Frente"}],
+    }}
+    repository.search_translation_matches.return_value = {"oracle-1": None}
+    repository.search_oracle_cards.return_value = [source]
+    card = client.get("/cards/oracle-1?lang=pt").json()
+    search = client.get("/cards/search?name=Frente&lang=pt")
+    assert search.status_code == 200
+    assert search.json() == [card]
+    assert card["lang"] == "pt" and card["printing_lang"] == "en"
+    assert card["color_identity"] == ["U"]
+    assert card["image_uris"] is None
+    assert [face["name"] for face in card["card_faces"]] == ["Frente", "Verso"]
+    assert card["card_faces"][0]["image_uris"]["normal"].endswith("/front.jpg")
+    assert card["card_faces"][1]["colors"] == []
+    assert card["card_faces"][1]["mana_cost"] == ""
+    assert card["card_faces"][1]["power"] == "*"
+    assert card["card_faces"][1]["oracle_text"] is None
+
+
+def test_openapi_documents_dto_public_reads_and_actual_errors(card_client):
+    client, _ = card_client
+    schema = client.get("/openapi.json").json()
+    models = schema["components"]["schemas"]
+    props = models["CardResponse"]["properties"]
+    for field in ("layout", "color_identity", "printing_lang", "image_uris", "card_faces"):
+        assert field in props
+    assert props["card_faces"]["items"]["$ref"].endswith("/CardFaceResponse")
+    assert set(models["CardResponse"]["required"]) == set(props)
+    assert "additionalProperties" not in models["CardResponse"]
+    assert "normal" in models["CardImages"]["properties"]
+    expected = {
+        ("/cards/search", "get"): {"200", "400", "404"},
+        ("/cards/{oracle_id}", "get"): {"200", "404", "422"},
+        ("/cards/resolve", "post"): {"200", "404", "422", "502"},
+        ("/translations", "post"): {"201", "404", "409", "422"},
+        ("/translations/{translation_id}", "patch"): {"200", "400", "404", "422"},
+    }
+    for (path, method), statuses in expected.items():
+        operation = schema["paths"][path][method]
+        assert set(operation["responses"]) == statuses
+        if path.startswith("/cards"):
+            assert not operation.get("security")
+            assert "No authentication required" in operation["description"]
+    from app.schemas import ErrorResponse, ValidationErrorResponse
+
+    invalid_search = client.get("/cards/search?limit=0")
+    assert invalid_search.status_code == 400
+    ValidationErrorResponse.model_validate(invalid_search.json())
+    invalid_card = client.get("/cards/invalid!")
+    assert invalid_card.status_code == 422
+    ValidationErrorResponse.model_validate(invalid_card.json())
+    _, repository = card_client
+    repository.get_by_oracle_id.return_value = None
+    ErrorResponse.model_validate(client.get("/cards/missing").json())

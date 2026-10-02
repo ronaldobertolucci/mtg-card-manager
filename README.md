@@ -180,6 +180,46 @@ MONGODB_URI=mongodb://localhost:27017 python sync_scryfall.py
 
 ## API
 
+### Acesso público e contrato de cartas
+
+**A leitura do catálogo é pública e não exige autenticação.** Isso inclui a busca,
+a consulta por Oracle ID e a resolução de IDs de impressões. O login da interface
+é uma decisão do frontend e não restringe esses endpoints. A política de autorização
+para escrita de traduções é separada; esta entrega não adiciona autenticação ao CRUD.
+
+Busca e consulta individual usam o mesmo `CardResponse`, com modelos explícitos para
+`CardFaceResponse` e `CardImages` no OpenAPI. Os campos declarados aparecem sempre na
+resposta, inclusive quando seu valor é `null`. Campos não declarados da fonte deixam
+de ser repassados automaticamente ao cliente.
+
+| Campo | Contrato |
+| --- | --- |
+| `id` / `oracle_id` | ID da impressão representante / identidade estável da carta. |
+| `lang` | Idioma dos textos retornados. |
+| `printing_lang` | Idioma original da impressão, preservado antes da tradução; `null` se desconhecido. Não é substituído pelo idioma solicitado. |
+| `layout` | Identificador de layout da fonte; `null` se indisponível. Aceita novos identificadores sem limitar a enumeração. |
+| `colors` | Cores no nível principal: `null` se indisponíveis nesse nível; `[]` se comprovadamente incolor. Em multiface, consulte também as faces. |
+| `color_identity` | Identidade da carta inteira: `null` se desconhecida; `[]` para identidade incolor. |
+| `color_indicator` | Indicador de cor informado pela fonte, ou `null` se não informado. |
+| `image_uris` | Objeto com `small`, `normal`, `large`, `png`, `art_crop` e `border_crop`; variantes indisponíveis são `null`. O objeto inteiro é `null` se não há imagens nesse nível. |
+| `card_faces` | Lista em ordem original; `[]` quando não há faces fornecidas. Cada face tem textos, atributos mecânicos e imagens próprios tipados. |
+| `loyalty` / `defense` | Texto ou `null`, assim como `power` e `toughness`; valores especiais não são convertidos em números. |
+| `legalities` | Mapa de status por formato; `{}` quando ausente, sem inferir legalidade. |
+
+`mana_cost: ""` é preservado e difere de `null` (não informado).
+Campos textuais opcionais e CMC ausentes continuam `null`. Textos opcionais sem
+tradução também são `null`, sem mistura automática com inglês. Imagens continuam
+vinculadas à impressão original, podendo estar em outro idioma.
+
+Os erros documentados preservam o comportamento existente: validação da busca é
+`400` com `detail` em lista; validação de corpo/caminho nas demais rotas é `422`.
+Erros de domínio usam `detail` textual. No CRUD, `422` também pode trazer texto para
+estrutura de tradução inválida. O OpenAPI inclui os erros específicos de cada rota,
+inclusive `409` de tradução duplicada e `502` na resolução via Scryfall.
+
+A busca retorna uma lista, exige pelo menos um filtro e responde `404` quando
+não há resultados.
+
 ### Resolver IDs de impressões
 
 `POST /cards/resolve` recebe IDs de impressões do Scryfall e retorna seus Oracle IDs:

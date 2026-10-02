@@ -4,7 +4,14 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, sta
 
 from app.database import get_database
 from app.repository import MongoCardRepository
-from app.schemas import CardResponse, ResolveCardsRequest, ResolvedCardResponse, SearchParams
+from app.schemas import (
+    CardResponse,
+    ErrorResponse,
+    ResolveCardsRequest,
+    ResolvedCardResponse,
+    SearchParams,
+    ValidationErrorResponse,
+)
 from app.scryfall import ScryfallCardNotFound, ScryfallUnavailable
 from app.service import CardSearchService
 from app.translation_schemas import LANGUAGE_PATTERN
@@ -16,7 +23,15 @@ def get_service(request: Request) -> CardSearchService:
     return CardSearchService(MongoCardRepository(get_database(request.app)))
 
 
-@router.get("/search", response_model=list[CardResponse])
+@router.get(
+    "/search",
+    response_model=list[CardResponse],
+    description="Public search. No authentication required. Non-English requires translation.",
+    responses={
+        400: {"model": ValidationErrorResponse, "description": "Invalid or conflicting filters."},
+        404: {"model": ErrorResponse, "description": "No matching cards or valid translations."},
+    },
+)
 async def search_cards(
     query: Annotated[SearchParams, Query()],
     service: Annotated[CardSearchService, Depends(get_service)],
@@ -27,7 +42,16 @@ async def search_cards(
     return cards
 
 
-@router.post("/resolve", response_model=list[ResolvedCardResponse])
+@router.post(
+    "/resolve",
+    response_model=list[ResolvedCardResponse],
+    description="Public read operation resolving printing IDs. No authentication required.",
+    responses={
+        404: {"model": ErrorResponse, "description": "Printing not found; entire batch fails."},
+        422: {"model": ValidationErrorResponse, "description": "Invalid request body."},
+        502: {"model": ErrorResponse, "description": "Scryfall failure or incompatible response."},
+    },
+)
 async def resolve_cards(
     payload: ResolveCardsRequest,
     service: Annotated[CardSearchService, Depends(get_service)],
@@ -40,7 +64,15 @@ async def resolve_cards(
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
-@router.get("/{oracle_id}", response_model=CardResponse)
+@router.get(
+    "/{oracle_id}",
+    response_model=CardResponse,
+    description="Public card lookup. No authentication required. No implicit translation fallback.",
+    responses={
+        404: {"model": ErrorResponse, "description": "Card or valid translation not found."},
+        422: {"model": ValidationErrorResponse, "description": "Invalid oracle_id or language."},
+    },
+)
 async def get_card_by_oracle_id(
     oracle_id: Annotated[str, Path(min_length=1, max_length=100, pattern=r"^[A-Za-z0-9-]+$")],
     service: Annotated[CardSearchService, Depends(get_service)],

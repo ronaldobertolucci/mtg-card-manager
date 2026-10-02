@@ -185,7 +185,11 @@ async def test_multiface_localized_get_and_search_preserve_mechanics():
     assert original["card_faces"][0]["name"] == "Front"
     assert (await service.search(SearchParams(name="Frente")))[0] == card
     english = await service.get_by_oracle_id("oracle-1", "en")
-    assert english.model_dump()["card_faces"] == original["card_faces"]
+    for actual, expected in zip(
+        english.model_dump()["card_faces"], original["card_faces"], strict=True
+    ):
+        assert {key: actual[key] for key in expected} == expected
+        assert actual["image_uris"] is None
 
 
 @pytest.mark.asyncio

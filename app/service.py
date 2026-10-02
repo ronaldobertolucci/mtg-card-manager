@@ -89,5 +89,6 @@ class CardSearchService:
     def _serialize(card: Document, lang: str) -> CardResponse:
         payload = dict(card)
         payload.pop("_id", None)
+        payload["printing_lang"] = card.get("lang")
         payload["lang"] = lang
         return CardResponse.model_validate(payload)

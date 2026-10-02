@@ -1,4 +1,4 @@
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -130,19 +130,99 @@ class SearchParams(BaseModel):
         return any((self.name, self.name_exact, self.oracle_text, self.type_line))
 
 
-class CardResponse(BaseModel):
-    id: str
-    oracle_id: str
-    lang: str
+Color = Literal["W", "U", "B", "R", "G"]
+
+
+class CardContract(BaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+
+class CardImages(CardContract):
+    """Image URLs of the representative printing; missing variants are null."""
+
+    small: str | None = None
+    normal: str | None = None
+    large: str | None = None
+    png: str | None = None
+    art_crop: str | None = None
+    border_crop: str | None = None
+
+
+class CardFaceResponse(CardContract):
+    """Faces retain their original order, including after translation."""
+
+    name: str
+    oracle_text: str | None = None
+    type_line: str | None = None
+    flavor_text: str | None = None
+    mana_cost: str | None = None
+    colors: list[Color] | None = Field(
+        default=None, description="Null: unavailable; []: known colorless face."
+    )
+    color_indicator: list[Color] | None = None
+    power: str | None = None
+    toughness: str | None = None
+    loyalty: str | None = None
+    defense: str | None = None
+    image_uris: CardImages | None = None
+    artist: str | None = None
+    illustration_id: str | None = None
+
+
+class CardResponse(CardContract):
+    """Public card contract. Uncontracted source fields are not exposed."""
+
+    id: str = Field(description="Representative printing ID; may change after sync.")
+    oracle_id: str = Field(description="Stable card identity.")
+    lang: str = Field(description="Language of the returned text, not necessarily of the images.")
+    printing_lang: str | None = Field(
+        default=None, description="Original printing language; null when unavailable."
+    )
+    layout: str | None = Field(
+        default=None, description="Source layout identifier; null when unavailable."
+    )
     legalities: dict[str, Legality] = Field(default_factory=dict)
     name: str
     oracle_text: str | None = None
     type_line: str | None = None
     flavor_text: str | None = None
-    colors: list[str] = Field(default_factory=list)
+    colors: list[Color] | None = Field(
+        default=None,
+        description="Null: unavailable at card level; []: known colorless. See faces if present.",
+    )
+    color_identity: list[Color] | None = Field(
+        default=None, description="Whole-card identity. Null: unknown; []: colorless identity."
+    )
+    color_indicator: list[Color] | None = None
     mana_cost: str | None = None
     cmc: float | None = None
     power: str | None = None
     toughness: str | None = None
+    loyalty: str | None = None
+    defense: str | None = None
+    image_uris: CardImages | None = Field(
+        default=None, description="Card-level images; some layouts only have images on faces."
+    )
+    card_faces: list[CardFaceResponse] = Field(
+        default_factory=list, description="Ordered faces; [] when no faces are supplied."
+    )
 
-    model_config = ConfigDict(extra="allow")
+
+class ValidationIssue(BaseModel):
+    loc: list[str | int]
+    msg: str
+    type: str
+    input: Any = None
+    ctx: dict[str, Any] | None = None
+
+
+class ValidationErrorResponse(BaseModel):
+    detail: list[ValidationIssue]
+
+
+class ErrorResponse(BaseModel):
+    detail: str
+
+
+class TranslationValidationErrorResponse(BaseModel):
+    detail: str | list[ValidationIssue]

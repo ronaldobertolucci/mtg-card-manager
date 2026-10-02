@@ -3,6 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response, status
 
 from app.database import get_database
+from app.schemas import ErrorResponse, TranslationValidationErrorResponse, ValidationErrorResponse
 from app.translation_repository import MongoTranslationRepository
 from app.translation_schemas import (
     LANGUAGE_PATTERN,
@@ -45,7 +46,15 @@ def _translate_error(error: Exception) -> HTTPException:
     raise error
 
 
-@router.post("", response_model=TranslationResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "", response_model=TranslationResponse, status_code=status.HTTP_201_CREATED,
+    responses={
+        404: {"model": ErrorResponse, "description": "Oracle card not found."},
+        409: {"model": ErrorResponse, "description": "Translation already exists."},
+        422: {"model": TranslationValidationErrorResponse,
+              "description": "Invalid body or translation structure."},
+    },
+)
 async def create_translation(
     payload: TranslationCreate,
     service: Annotated[TranslationService, Depends(get_translation_service)],
@@ -60,7 +69,10 @@ async def create_translation(
         raise _translate_error(error) from error
 
 
-@router.get("", response_model=list[TranslationResponse])
+@router.get(
+    "", response_model=list[TranslationResponse],
+    responses={422: {"model": ValidationErrorResponse, "description": "Invalid query parameters."}},
+)
 async def list_translations(
     query: Annotated[TranslationListParams, Query()],
     service: Annotated[TranslationService, Depends(get_translation_service)],
@@ -68,7 +80,13 @@ async def list_translations(
     return await service.list(query)
 
 
-@router.get("/by-card/{oracle_id}/{lang}", response_model=TranslationResponse)
+@router.get(
+    "/by-card/{oracle_id}/{lang}", response_model=TranslationResponse,
+    responses={
+        404: {"model": ErrorResponse, "description": "Translation not found."},
+        422: {"model": ValidationErrorResponse, "description": "Invalid card/language parameters."},
+    },
+)
 async def get_translation_by_card_language(
     oracle_id: Annotated[
         str,
@@ -83,7 +101,13 @@ async def get_translation_by_card_language(
         raise _translate_error(error) from error
 
 
-@router.get("/{translation_id}", response_model=TranslationResponse)
+@router.get(
+    "/{translation_id}", response_model=TranslationResponse,
+    responses={
+        400: {"model": ErrorResponse, "description": "Invalid translation ObjectId."},
+        404: {"model": ErrorResponse, "description": "Translation not found."},
+    },
+)
 async def get_translation(
     translation_id: str,
     service: Annotated[TranslationService, Depends(get_translation_service)],
@@ -94,7 +118,15 @@ async def get_translation(
         raise _translate_error(error) from error
 
 
-@router.patch("/{translation_id}", response_model=TranslationResponse)
+@router.patch(
+    "/{translation_id}", response_model=TranslationResponse,
+    responses={
+        400: {"model": ErrorResponse, "description": "Invalid translation ObjectId."},
+        404: {"model": ErrorResponse, "description": "Translation or original card not found."},
+        422: {"model": TranslationValidationErrorResponse,
+              "description": "Invalid body or translation structure."},
+    },
+)
 async def update_translation(
     translation_id: str,
     payload: TranslationUpdate,
@@ -111,7 +143,13 @@ async def update_translation(
         raise _translate_error(error) from error
 
 
-@router.delete("/{translation_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{translation_id}", status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        400: {"model": ErrorResponse, "description": "Invalid translation ObjectId."},
+        404: {"model": ErrorResponse, "description": "Translation not found."},
+    },
+)
 async def delete_translation(
     translation_id: str,
     service: Annotated[TranslationService, Depends(get_translation_service)],
