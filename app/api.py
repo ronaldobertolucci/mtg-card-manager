@@ -5,6 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, sta
 from app.database import get_database
 from app.repository import MongoCardRepository
 from app.schemas import (
+    BatchCardsRequest,
+    BatchCardsResponse,
     CardResponse,
     CardSearchResponse,
     ErrorResponse,
@@ -63,6 +65,26 @@ async def resolve_cards(
         raise HTTPException(status_code=404, detail=f"Card not found: {exc}") from exc
     except ScryfallUnavailable as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.post(
+    "/batch",
+    response_model=BatchCardsResponse,
+    description=(
+        "Public bulk read by Oracle ID. No authentication required. Local catalog only. "
+        "Up to 200 input positions; duplicates are returned once, in first-occurrence order "
+        "within cards and missing. Empty or partially missing batches return 200. "
+        "Translation fallback to English requires fallbackLang=en."
+    ),
+    responses={
+        422: {"model": ValidationErrorResponse, "description": "Invalid batch request body."},
+    },
+)
+async def batch_cards(
+    payload: BatchCardsRequest,
+    service: Annotated[CardSearchService, Depends(get_service)],
+) -> BatchCardsResponse:
+    return await service.batch(payload)
 
 
 @router.get(

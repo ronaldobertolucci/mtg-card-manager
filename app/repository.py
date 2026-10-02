@@ -16,6 +16,8 @@ class CardRepository(Protocol):
 
     async def get_by_oracle_id(self, oracle_id: str) -> Document | None: ...
 
+    async def get_by_oracle_ids(self, oracle_ids: Sequence[str]) -> list[Document]: ...
+
     async def search_translation_matches(self, params: SearchParams) -> TranslationMatches: ...
 
     async def search_oracle_cards(
@@ -120,6 +122,12 @@ class MongoCardRepository:
         if not ids:
             return []
         cursor = self._oracle_cards.find({"id": {"$in": list(ids)}})
+        return [document async for document in cursor]
+
+    async def get_by_oracle_ids(self, oracle_ids: Sequence[str]) -> list[Document]:
+        if not oracle_ids:
+            return []
+        cursor = self._oracle_cards.find({"oracle_id": {"$in": list(oracle_ids)}})
         return [document async for document in cursor]
 
     async def get_by_oracle_id(self, oracle_id: str) -> Document | None:

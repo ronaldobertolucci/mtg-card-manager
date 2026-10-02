@@ -183,7 +183,7 @@ MONGODB_URI=mongodb://localhost:27017 python sync_scryfall.py
 ### Acesso público e contrato de cartas
 
 **A leitura do catálogo é pública e não exige autenticação.** Isso inclui a busca,
-a consulta por Oracle ID e a resolução de IDs de impressões. O login da interface
+a consulta individual ou em lote por Oracle ID e a resolução de IDs de impressões. O login da interface
 é uma decisão do frontend e não restringe esses endpoints. A política de autorização
 para escrita de traduções é separada; esta entrega não adiciona autenticação ao CRUD.
 
@@ -219,6 +219,83 @@ inclusive `409` de tradução duplicada e `502` na resolução via Scryfall.
 
 A busca retorna um objeto paginado com `items`, `limit`, `offset` e `hasNext`.
 Filtros são opcionais, e páginas vazias retornam `200` com `items: []` e `hasNext: false`.
+
+### Consultar cartas em lote por Oracle ID
+
+`POST /cards/batch` é uma operação pública de leitura. Retorna os dados completos
+do DTO de cartas a partir do catálogo local, sem uma requisição por carta e sem
+consultar o Scryfall em tempo real.
+
+```bash
+curl -X POST http://localhost:8002/cards/batch \
+  -H 'Content-Type: application/json' \
+  -d '{"oracleIds": ["oracle-id-1", "oracle-id-2"], "lang": "pt", "fallbackLang": "en"}'
+```
+
+| Campo de entrada | Regra |
+| --- | --- |
+| `oracleIds` | Obrigatório; lista de até 200 posições, antes da deduplicação. Cada ID aceita letras, números e hífens, com 1 a 100 caracteres. Lista vazia é válida. |
+| `lang` | Opcional, padrão `pt`. Normaliza o idioma como no CRUD de traduções: `PT` → `pt`, `pt-br` → `pt-BR`. |
+| `fallbackLang` | Opcional; somente `"en"` ou `null`. Ausente ou `null` desabilita fallback. Com `lang=en`, não altera a resposta. |
+
+Campos desconhecidos são rejeitados. A lista é deduplicada pelo ID exato, mantendo
+a ordem da primeira ocorrência em cada lista de saída. A quantidade de cópias de
+uma carta continua sendo responsabilidade do deck, não do catálogo.
+
+Exemplo de resposta com campos de cartas abreviados:
+
+```json
+{
+  "cards": [
+    {
+      "oracle_id": "oracle-id-1",
+      "id": "printing-id-1",
+      "name": "Lightning Bolt",
+      "lang": "en",
+      "printing_lang": "en",
+      "requested_lang": "pt",
+      "fallback_reason": "translation_missing"
+    }
+  ],
+  "missing": [
+    {"oracle_id": "oracle-id-2", "reason": "card_not_found"}
+  ]
+}
+```
+
+Cada elemento de `cards` contém o DTO completo, incluindo faces, imagens, `layout`,
+identidade de cor e legalidades, mais dois campos:
+
+- `requested_lang`: idioma solicitado, em formato canônico.
+- `fallback_reason`: `null` quando o idioma solicitado foi atendido;
+  `translation_missing` ou `translation_invalid` quando houve fallback.
+
+`lang` informa o idioma dos textos efetivamente retornados. `printing_lang` preserva
+o idioma da impressão e pode diferir dos textos. O fallback usa o documento oficial
+inteiro em inglês, incluindo todas as faces, sem misturar traduções parciais.
+
+| Motivo em `missing` | Significado |
+| --- | --- |
+| `card_not_found` | Oracle ID ausente do catálogo local; não afirma inexistência no Scryfall. |
+| `translation_missing` | Carta local existe, mas não há tradução no idioma solicitado. |
+| `translation_invalid` | Tradução existe, mas é estruturalmente inválida, por exemplo com faces incompletas. |
+
+Sem fallback, traduções indisponíveis entram em `missing`. Com fallback, essas cartas
+entram em `cards` com `lang=en`, `requested_lang` e `fallback_reason`, e não se repetem
+em `missing`. Cartas ausentes do catálogo local continuam em `missing`.
+
+Lotes parcialmente ou totalmente ausentes retornam `200`. Uma lista vazia retorna
+`{"cards": [], "missing": []}`. Corpo, ID, idioma ou limite inválido retorna `422`
+com `detail` em lista, sem executar parte da consulta. Erros de infraestrutura não
+são classificados como ausências de cartas ou traduções.
+
+A consulta realiza uma busca em lote por `oracle_id` e, quando necessário, outra
+para traduções no idioma solicitado. Não aplica filtros de busca, de legalidade ou
+a exclusão padrão de tokens: hidrata todas as entradas disponíveis que o deck enviou.
+O frontend deve preservar as entradas e quantidades do deck, associando resultados
+por `oracle_id`; pode exibir “Tradução indisponível — exibindo inglês” quando houver
+fallback. A busca e a consulta individual continuam exigindo tradução válida sem
+fallback implícito. `/cards/resolve` mantém seu contrato próprio de IDs de impressão.
 
 ### Resolver IDs de impressões
 

@@ -297,3 +297,26 @@ async def test_malformed_translated_face_matching_does_not_break_search(catalog)
     page = await service.search(SearchParams(oracle_text="Voar", limit=1))
     assert [card.oracle_id for card in page.items] == ["normal"]
     assert not page.has_next
+
+
+async def test_batch_mongo_preserves_partial_results_and_explicit_fallback(catalog):
+    from app.schemas import BatchCardsRequest
+
+    database, service = catalog
+    request = {"oracleIds": ["normal", "absent", "multi", "normal"], "lang": "pt"}
+    result = await service.batch(BatchCardsRequest(**request))
+    assert [card.oracle_id for card in result.cards] == ["normal", "multi"]
+    assert result.missing[0].reason == "card_not_found"
+    await database.translations.update_one(
+        {"oracle_id": "multi"}, {"$pop": {"card_faces": 1}}
+    )
+    partial = await service.batch(BatchCardsRequest(**request))
+    assert [card.oracle_id for card in partial.cards] == ["normal"]
+    assert [item.reason for item in partial.missing] == ["card_not_found", "translation_invalid"]
+    fallback = await service.batch(BatchCardsRequest(**request, fallbackLang="en"))
+    assert [card.lang for card in fallback.cards] == ["pt", "en"]
+    assert fallback.cards[1].fallback_reason == "translation_invalid"
+    assert [face.name for face in fallback.cards[1].card_faces] == ["Front", "Back"]
+    # Batch fallback must not change the strict translated search or individual lookup.
+    assert await service.get_by_oracle_id("multi", "pt") is None
+    assert [card.oracle_id for card in (await service.search(SearchParams())).items] == ["normal"]

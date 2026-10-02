@@ -3,10 +3,32 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.legalities import GameFormat, Legality
+from app.translation_schemas import LANGUAGE_PATTERN, normalize_language
 
 
 class ResolveCardsRequest(BaseModel):
     ids: list[Annotated[str, Field(min_length=1, max_length=100, pattern=r"^[A-Za-z0-9-]+$")]]
+
+
+class BatchCardsRequest(BaseModel):
+    oracle_ids: list[
+        Annotated[str, Field(min_length=1, max_length=100, pattern=r"^[A-Za-z0-9-]+$")]
+    ] = Field(
+        alias="oracleIds", max_length=200,
+        description="Up to 200 input positions, before deduplication. Empty list is accepted.",
+    )
+    lang: str = Field(default="pt", min_length=2, max_length=16, pattern=LANGUAGE_PATTERN)
+    fallback_lang: Literal["en"] | None = Field(
+        default=None, alias="fallbackLang",
+        description="Explicit English fallback for unavailable translations; null disables it.",
+    )
+
+    model_config = ConfigDict(extra="forbid")
+
+    @field_validator("lang")
+    @classmethod
+    def canonicalize_language(cls, value: str) -> str:
+        return normalize_language(value)
 
 
 class ResolvedCardResponse(BaseModel):
@@ -190,6 +212,28 @@ class CardResponse(CardContract):
     card_faces: list[CardFaceResponse] = Field(
         default_factory=list, description="Ordered faces; [] when no faces are supplied."
     )
+
+
+TranslationUnavailableReason = Literal["translation_missing", "translation_invalid"]
+
+
+class BatchCardResponse(CardResponse):
+    requested_lang: str = Field(description="Canonical requested text language.")
+    fallback_reason: TranslationUnavailableReason | None = Field(
+        default=None, description="Why English fallback was used; null if no fallback was used."
+    )
+
+
+class MissingBatchCard(CardContract):
+    oracle_id: str
+    reason: Literal["card_not_found", "translation_missing", "translation_invalid"] = Field(
+        description="card_not_found means absent from the local catalog, not from Scryfall."
+    )
+
+
+class BatchCardsResponse(CardContract):
+    cards: list[BatchCardResponse]
+    missing: list[MissingBatchCard]
 
 
 class CardSearchResponse(CardContract):

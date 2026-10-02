@@ -1,5 +1,15 @@
 from app.repository import CardRepository, Document
-from app.schemas import CardResponse, CardSearchResponse, ResolvedCardResponse, SearchParams
+from app.schemas import (
+    BatchCardResponse,
+    BatchCardsRequest,
+    BatchCardsResponse,
+    CardResponse,
+    CardSearchResponse,
+    MissingBatchCard,
+    ResolvedCardResponse,
+    SearchParams,
+    TranslationUnavailableReason,
+)
 from app.scryfall import ScryfallClient
 
 TRANSLATABLE_FIELDS = ("name", "oracle_text", "type_line", "flavor_text")
@@ -22,6 +32,46 @@ class CardSearchService:
         if missing_ids:
             cards.update(await self._scryfall.get_by_ids(missing_ids))
         return [cards[card_id] for card_id in ids]
+
+    async def batch(self, request: BatchCardsRequest) -> BatchCardsResponse:
+        result = BatchCardsResponse(cards=[], missing=[])
+        unique_ids = list(dict.fromkeys(request.oracle_ids))
+        if not unique_ids:
+            return result
+        documents = await self._repository.get_by_oracle_ids(unique_ids)
+        by_id = {str(card["oracle_id"]): card for card in documents}
+        translations = (
+            await self._repository.get_translations(list(by_id), request.lang)
+            if request.lang != "en" and by_id else {}
+        )
+        for oracle_id in unique_ids:
+            card = by_id.get(oracle_id)
+            if card is None:
+                result.missing.append(
+                    MissingBatchCard(oracle_id=oracle_id, reason="card_not_found")
+                )
+                continue
+            response_lang = request.lang
+            fallback_reason: TranslationUnavailableReason | None = None
+            if request.lang != "en":
+                translation = translations.get(oracle_id)
+                localized = self._merge_translation(card, translation)
+                if localized is None:
+                    reason: TranslationUnavailableReason = (
+                        "translation_missing" if translation is None else "translation_invalid"
+                    )
+                    if request.fallback_lang is None:
+                        result.missing.append(MissingBatchCard(oracle_id=oracle_id, reason=reason))
+                        continue
+                    response_lang = "en"
+                    fallback_reason = reason
+                else:
+                    card = localized
+            result.cards.append(BatchCardResponse(
+                **self._serialize(card, response_lang).model_dump(),
+                requested_lang=request.lang, fallback_reason=fallback_reason,
+            ))
+        return result
 
     async def get_by_oracle_id(self, oracle_id: str, lang: str) -> CardResponse | None:
         card = await self._repository.get_by_oracle_id(oracle_id)
