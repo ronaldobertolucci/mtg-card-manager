@@ -355,3 +355,62 @@ def test_pagination_bounds_remain_enforced(card_client, query):
     client, repository = card_client
     assert client.get("/cards/search", params=query).status_code == 400
     repository.search_oracle_cards.assert_not_awaited()
+
+
+@pytest.mark.parametrize("query", [
+    {"colors_mode": "any"}, {"colors_mode": "all"}, {"colors_mode": "exact"},
+    {"colors": "U", "colors_mode": "unknown"},
+    {"colors": "", "colors_mode": "any"}, {"colors": "", "colors_mode": "all"},
+    {"colors": "U", "colorless": "true"}, {"colors": "U", "colorless": "false"},
+    {"colors": "", "colorless": "true"}, {"colorless": "true", "colors_mode": "exact"},
+    {"colors": "U,"}, {"colors": ",U"}, {"colors": "U,,R"}, {"colors": " "},
+    {"colors": "U,U"}, {"colorless": "unknown"},
+])
+def test_color_operator_conflicts_return_400_before_io(card_client, query):
+    client, repository = card_client
+    response = client.get("/cards/search", params=query)
+    assert response.status_code == 400
+    repository.search_oracle_cards.assert_not_awaited()
+    repository.search_translation_matches.assert_not_awaited()
+
+
+@pytest.mark.parametrize("query,expected_colors,expected_mode,expected_colorless", [
+    ({"colors": " r, u ", "colors_mode": "any"}, ["R", "U"], "any", None),
+    ({"colors": "U,R", "colors_mode": "all"}, ["U", "R"], "all", None),
+    ({"colors": "R,U", "colors_mode": "exact"}, ["R", "U"], "exact", None),
+    ({"colors": "R,U"}, ["R", "U"], None, None),
+    ({"colors": ""}, [], None, None),
+    ({"colors": "", "colors_mode": "exact"}, [], "exact", None),
+    ({"colorless": "true"}, None, None, True),
+    ({"colorless": "false"}, None, None, False),
+])
+def test_color_operator_query_contract(
+    card_client, query, expected_colors, expected_mode, expected_colorless
+):
+    client, repository = card_client
+    repository.search_oracle_cards.return_value = []
+    response = client.get("/cards/search", params={"lang": "en", **query})
+    assert response.status_code == 200
+    received = repository.search_oracle_cards.call_args.args[0]
+    assert received.colors == expected_colors
+    assert received.colors_mode == expected_mode
+    assert received.colorless is expected_colorless
+
+
+def test_colors_repeated_query_parameters_keep_same_validation(card_client):
+    client, repository = card_client
+    repository.search_oracle_cards.return_value = []
+    response = client.get("/cards/search?lang=en&colors=U&colors=R&colors_mode=all")
+    assert response.status_code == 200
+    assert repository.search_oracle_cards.call_args.args[0].colors == ["U", "R"]
+    assert client.get("/cards/search?colors=U&colors=").status_code == 400
+
+
+def test_color_filters_are_described_in_openapi(card_client):
+    client, _ = card_client
+    parameters = client.get("/openapi.json").json()["paths"]["/cards/search"]["get"]["parameters"]
+    fields = {param["name"]: param for param in parameters}
+    mode = fields["colors_mode"]["schema"]["anyOf"][0]
+    assert mode["enum"] == ["any", "all", "exact"]
+    assert not fields["colors_mode"]["required"]
+    assert fields["colorless"]["schema"]["anyOf"][0]["type"] == "boolean"

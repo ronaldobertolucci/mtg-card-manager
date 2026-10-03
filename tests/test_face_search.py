@@ -320,3 +320,106 @@ async def test_batch_mongo_preserves_partial_results_and_explicit_fallback(catal
     # Batch fallback must not change the strict translated search or individual lookup.
     assert await service.get_by_oracle_id("multi", "pt") is None
     assert [card.oracle_id for card in (await service.search(SearchParams())).items] == ["normal"]
+
+
+@pytest_asyncio.fixture
+async def color_catalog(catalog):
+    database, service = catalog
+    cards = []
+    translations = []
+    for identity, attributes in [
+        ("a-missing", {}), ("b-null", {"colors": None}), ("c-empty", {"colors": []}),
+        ("d-u", {"colors": ["U"]}), ("e-r", {"colors": ["R"]}),
+        ("f-ur", {"colors": ["U", "R"]}), ("g-ru", {"colors": ["R", "U"]}),
+        ("h-wur", {"colors": ["W", "U", "R"]}),
+    ]:
+        cards.append({"_id": identity, "id": identity, "oracle_id": identity,
+                      "name": "H4 Card", **attributes})
+        translations.append({"oracle_id": identity, "lang": "pt", "name": "H4 Carta"})
+    for identity, front_colors, back_colors in [
+        ("i-split", ["U"], ["R"]), ("j-multi", ["U", "R"], []),
+    ]:
+        cards.append({
+            "_id": identity, "id": identity, "oracle_id": identity,
+            "name": "H4 Front // H4 Back",
+            "card_faces": [
+                {"name": "H4 Front", "colors": front_colors, "power": "2",
+                 "type_line": "Creature", "oracle_text": "Draw"},
+                {"name": "H4 Back", "colors": back_colors, "power": "4",
+                 "type_line": "Land", "oracle_text": "Flying"},
+            ],
+        })
+        translations.append({
+            "oracle_id": identity, "lang": "pt", "name": "H4 Frente // H4 Verso",
+            "card_faces": [
+                {"face_index": 1, "name": "H4 Verso", "oracle_text": "Voar",
+                 "type_line": "Terreno"},
+                {"face_index": 0, "name": "H4 Frente", "oracle_text": "Comprar",
+                 "type_line": "Criatura"},
+            ],
+        })
+    await database.oracle_cards.insert_many(cards)
+    await database.translations.insert_many(translations)
+    return service
+
+
+@pytest.mark.parametrize("lang", ["en", "pt"])
+@pytest.mark.parametrize("colors", ["U,R", "R,U"])
+@pytest.mark.parametrize("mode,expected", [
+    ("any", {"d-u", "e-r", "f-ur", "g-ru", "h-wur", "i-split", "j-multi"}),
+    ("all", {"f-ur", "g-ru", "h-wur", "j-multi"}),
+    ("exact", {"f-ur", "g-ru", "j-multi"}),
+    (None, {"f-ur", "g-ru", "j-multi"}),
+])
+async def test_color_operators_are_order_independent(color_catalog, lang, colors, mode, expected):
+    page = await color_catalog.search(
+        SearchParams(lang=lang, name="H4", colors=colors, colors_mode=mode)
+    )
+    assert {card.oracle_id for card in page.items} == expected
+    assert not page.has_next
+
+
+@pytest.mark.parametrize("lang", ["en", "pt"])
+@pytest.mark.parametrize("filters,expected", [
+    ({"colorless": True}, {"c-empty", "j-multi"}),
+    ({"colors": ""}, {"c-empty", "j-multi"}),
+    ({"colors": "", "colors_mode": "exact"}, {"c-empty", "j-multi"}),
+    ({"colorless": False}, {"d-u", "e-r", "f-ur", "g-ru", "h-wur", "i-split", "j-multi"}),
+])
+async def test_colorlessness_requires_known_colors(color_catalog, lang, filters, expected):
+    page = await color_catalog.search(SearchParams(lang=lang, name="H4", **filters))
+    assert {card.oracle_id for card in page.items} == expected
+
+
+@pytest.mark.parametrize("lang,text", [("en", "Flying"), ("pt", "Voar")])
+@pytest.mark.parametrize("filters,expected", [
+    ({"colors": "U", "colors_mode": "any"}, []),
+    ({"colors": "R", "colors_mode": "all"}, ["i-split"]),
+    ({"colors": "R", "colors_mode": "exact"}, ["i-split"]),
+    ({"colors": "U,R", "colors_mode": "all"}, []),
+    ({"colorless": True}, ["j-multi"]),
+    ({"colorless": True, "power": "2"}, []),
+    ({"colorless": False}, ["i-split"]),
+])
+async def test_colors_and_text_match_same_face(color_catalog, lang, text, filters, expected):
+    page = await color_catalog.search(
+        SearchParams(lang=lang, name="H4", oracle_text=text, **filters)
+    )
+    assert [card.oracle_id for card in page.items] == expected
+
+
+@pytest.mark.parametrize("lang", ["en", "pt"])
+async def test_exact_color_filter_runs_before_pagination(color_catalog, lang):
+    first = await color_catalog.search(
+        SearchParams(lang=lang, name="H4", colors="R,U", colors_mode="exact", limit=1)
+    )
+    second = await color_catalog.search(
+        SearchParams(lang=lang, name="H4", colors="U,R", colors_mode="exact", limit=1, offset=1)
+    )
+    last = await color_catalog.search(
+        SearchParams(lang=lang, name="H4", colors="R,U", colors_mode="exact", limit=1, offset=2)
+    )
+    assert [card.oracle_id for page in (first, second, last) for card in page.items] == [
+        "f-ur", "g-ru", "j-multi",
+    ]
+    assert first.has_next and second.has_next and not last.has_next

@@ -381,7 +381,9 @@ GET /cards/search?lang=pt&limit=50&offset=0
 | `include_tokens` | boolean | `false` | Inclui tokens nos resultados quando `true`. |
 | `oracle_text` | string | — | Busca parcial no texto Oracle. |
 | `type_line` | string | — | Busca parcial na linha de tipo. |
-| `colors` | string | — | Cores separadas por vírgula. Aceita somente `W,U,B,R,G`, sem repetição. |
+| `colors` | string | — | Cores separadas por vírgula. Aceita somente `W,U,B,R,G`, sem repetição e sem depender da ordem. |
+| `colors_mode` | string | omitido: `exact` | Operador `any`, `all` ou `exact`; exige `colors`. |
+| `colorless` | boolean | — | `true`: cores conhecidas e vazias; `false`: cores conhecidas e não vazias. Não pode ser combinado com `colors` ou `colors_mode`. |
 | `mana_cost` | string | — | Correspondência exata do custo, por exemplo `{R}` ou `{1}{U}`. |
 | `cmc` | número | — | Valor de mana exato, maior ou igual a zero. |
 | `cmc_gte` | número | — | Valor de mana mínimo, inclusivo. |
@@ -397,10 +399,52 @@ Regras importantes:
 
 - `cmc` não pode ser combinado com `cmc_gte` ou `cmc_lte`.
 - `cmc_gte` não pode ser maior que `cmc_lte`.
-- `colors` usa igualdade exata do array, inclusive a ordem. `colors=U,R` não significa
-  “contém azul ou vermelho”.
+- Sem `colors_mode`, `colors` exige exatamente as cores informadas, sem depender da
+  ordem. Para “azul ou vermelho”, use `colors=U,R&colors_mode=any`.
+- `colors_mode` sem `colors`, valores inválidos ou combinações com `colorless`
+  retornam `400`. Cores duplicadas e componentes vazios, como `U,,R`, também são inválidos.
 - Para custos com chaves, faça URL encoding quando necessário: `{R}` vira `%7BR%7D`.
 - Recomenda-se usar o formato canônico dos idiomas, como `en` e `pt`.
+
+### Operadores de cores e seleção de incolores
+
+Os operadores comparam as cores oficiais da carta ou de uma mesma face, em qualquer
+idioma da busca. Não calculam identidade de cor nem combinam cores de faces distintas.
+
+| Consulta | Correspondência |
+| --- | --- |
+| `colors=U,R&colors_mode=any` | Azul ou vermelho; outras cores são permitidas. |
+| `colors=U,R&colors_mode=all` | Azul e vermelho juntos; outras cores são permitidas. |
+| `colors=U,R&colors_mode=exact` | Somente azul e vermelho. |
+| `colors=R,U` | Mesmo resultado que o exemplo `exact`, inclusive a ordem da página. |
+| `colorless=true` | Array de cores conhecido e vazio no nível correspondente. |
+| `colorless=false` | Array de cores conhecido e não vazio no nível correspondente. |
+
+Omitir os dois filtros não restringe as cores. Campos ausentes ou `null` não
+correspondem a `colorless=true` nem a `colorless=false`. Uma carta com uma face
+colorida e outra incolor pode aparecer em ambas as consultas, dependendo dos outros
+filtros: a regra é por carta/face correspondente, não pela união das cores das faces.
+
+O parâmetro `colors_mode` pode ser omitido (o comportamento efetivo é `exact`);
+quando enviado, exige `colors` e usa os valores em minúsculas. Os valores de `colors`
+aceitam letras minúsculas e espaços nas extremidades, normalizados para maiúsculas.
+
+Por compatibilidade, `colors=` continua selecionando incolores, como `colorless=true`,
+e pode ser combinado com `colors_mode=exact`. Uma seleção vazia com `any` ou `all`
+retorna `400`; prefira `colorless=true`. Qualquer envio conjunto de `colorless` e
+`colors`/`colors_mode` é rejeitado, mesmo se `colorless=false` ou `colors=`.
+
+Textos, custo, poder, resistência e cores devem corresponder juntos na raiz ou em
+uma mesma face. Em traduções, é preservado o `face_index` correspondente. Por exemplo,
+`oracle_text=Voar&colors=U&colors_mode=any` exige azul na face com “Voar”; não basta que
+outra face seja azul. Os filtros continuam sendo aplicados antes da paginação.
+
+```http
+GET /cards/search?lang=en&colors=U,R&colors_mode=any
+GET /cards/search?lang=en&colors=R,U&colors_mode=all
+GET /cards/search?lang=pt&colors=U,R&colors_mode=exact
+GET /cards/search?lang=en&colorless=true
+```
 
 ### Legalidade por formato
 
@@ -502,7 +546,8 @@ curl 'http://localhost:8002/cards/search?lang=pt&colors=R&cmc=1&limit=5'
 - `oracle_text`, `type_line`, `mana_cost`, `colors`, `power` e `toughness`
   devem corresponder juntos aos campos principais ou a uma mesma face.
 - `oracle_text` e `type_line` usam correspondência parcial literal, sem distinguir maiúsculas.
-  Custo, poder e resistência usam igualdade exata; cores exigem o mesmo array e ordem.
+  Custo, poder e resistência usam igualdade exata; cores usam o operador escolhido,
+  com `exact` por padrão e sem depender da ordem.
 - Em traduções, o texto e os atributos mecânicos devem corresponder ao mesmo
   `face_index`, independentemente da ordem das faces no documento da tradução.
 - Por exemplo, `type_line=Land&power=2` não combina o tipo de uma face com o

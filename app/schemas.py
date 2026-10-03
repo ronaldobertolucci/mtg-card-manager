@@ -55,7 +55,17 @@ class SearchParams(BaseModel):
     )
     oracle_text: str | None = Field(default=None, min_length=1, max_length=1000)
     type_line: str | None = Field(default=None, min_length=1, max_length=200)
-    colors: list[str] | None = None
+    colors: list[str] | None = Field(
+        default=None, description="Comma-separated W,U,B,R,G. Order independent; no duplicates."
+    )
+    colors_mode: Literal["any", "all", "exact"] | None = Field(
+        default=None, description="Color operator; omission means exact. Requires colors."
+    )
+    colorless: bool | None = Field(
+        default=None,
+        description="True: known empty colors; false: known nonempty colors. "
+        "Cannot be combined with colors or colors_mode. Omission does not filter colorlessness.",
+    )
     mana_cost: str | None = Field(default=None, max_length=100)
     cmc: float | None = Field(default=None, ge=0)
     cmc_gte: float | None = Field(default=None, ge=0)
@@ -96,18 +106,13 @@ class SearchParams(BaseModel):
     def parse_colors(cls, value: Any) -> Any:
         if value is None:
             return value
-        if isinstance(value, list):
-            values: list[str] = []
-            for item in value:
-                if not isinstance(item, str):
-                    raise ValueError("colors must be a comma-separated string")
-                values.extend(color.strip().upper() for color in item.split(",") if color.strip())
-            return values
-        if not isinstance(value, str):
+        values = value if isinstance(value, list) else [value]
+        if any(not isinstance(item, str) for item in values):
             raise ValueError("colors must be a comma-separated string")
-        if value == "":
+        # Keep the legacy explicit empty selection, but reject empty comma components.
+        if values == [""] or values == []:
             return []
-        return [color.strip().upper() for color in value.split(",")]
+        return [color.strip().upper() for item in values for color in item.split(",")]
 
     @field_validator("colors")
     @classmethod
@@ -121,6 +126,14 @@ class SearchParams(BaseModel):
 
     @model_validator(mode="after")
     def validate_filters(self) -> "SearchParams":
+        if self.colorless is not None and (
+            self.colors is not None or self.colors_mode is not None
+        ):
+            raise ValueError("colorless cannot be combined with colors or colors_mode")
+        if self.colors_mode is not None and self.colors is None:
+            raise ValueError("colors_mode requires colors")
+        if self.colors == [] and self.colors_mode in ("any", "all"):
+            raise ValueError("any/all require at least one color; use colorless=true")
         if self.legality is not None and self.format is None:
             raise ValueError("legality requires format")
         if self.format is not None and self.legality is None:

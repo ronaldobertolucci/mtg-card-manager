@@ -61,7 +61,9 @@ async def test_translation_name_filters(filters, expected) -> None:
 
 def test_cmc_range_query() -> None:
     query = _attribute_filter(SearchParams(colors="U,R", cmc_gte=2, cmc_lte=4))
-    assert query == {"colors": ["U", "R"], "cmc": {"$gte": 2.0, "$lte": 4.0}}
+    assert query == {
+        "colors": {"$all": ["U", "R"], "$size": 2}, "cmc": {"$gte": 2.0, "$lte": 4.0}
+    }
 
 
 def test_localized_card_query_uses_scryfall_oracle_id_not_printing_id() -> None:
@@ -75,7 +77,10 @@ def test_localized_card_query_uses_scryfall_oracle_id_not_printing_id() -> None:
         "$or": [
             {
                 "oracle_id": {"$in": ["oracle-1", "oracle-2"]},
-                "$or": [{"colors": ["U"]}, {"card_faces": {"$elemMatch": {"colors": ["U"]}}}],
+                "$or": [
+                    {"colors": {"$all": ["U"], "$size": 1}},
+                    {"card_faces": {"$elemMatch": {"colors": {"$all": ["U"], "$size": 1}}}},
+                ],
             }
         ]
     }

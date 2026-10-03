@@ -45,9 +45,17 @@ def _text_filter(params: SearchParams) -> Document:
 
 def _attribute_filter(params: SearchParams) -> Document:
     result: Document = {}
-    if params.colors is not None:
-        # Equality is array equality in MongoDB: same values in the same order.
-        result["colors"] = params.colors
+    if params.colorless is True or params.colors == []:
+        result["colors"] = {"$size": 0}
+    elif params.colorless is False:
+        result["colors"] = {"$type": "array", "$ne": []}
+    elif params.colors is not None:
+        if params.colors_mode == "any":
+            result["colors"] = {"$type": "array", "$in": params.colors}
+        elif params.colors_mode == "all":
+            result["colors"] = {"$type": "array", "$all": params.colors}
+        else:
+            result["colors"] = {"$all": params.colors, "$size": len(params.colors)}
     for field in ("mana_cost", "power", "toughness"):
         value = getattr(params, field)
         if value is not None:
