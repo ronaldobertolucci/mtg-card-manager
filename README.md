@@ -364,7 +364,7 @@ GET /cards/search
 Os filtros são opcionais. Quando informados, são combinados com lógica `AND`.
 Sem filtros, `lang=en` abre o catálogo oficial; o padrão `lang=pt` abre somente
 as traduções válidas. Não é necessário usar `cmc_gte=0`, e cartas sem CMC informado
-continuam elegíveis. A exclusão padrão de tokens é preservada.
+continuam elegíveis. Sem `kind`, a exclusão padrão de tokens é preservada.
 
 ```http
 GET /cards/search?lang=en&limit=50&offset=0
@@ -378,7 +378,8 @@ GET /cards/search?lang=pt&limit=50&offset=0
 | `lang` | string | `pt` | Idioma da resposta. Use `en` para dados oficiais ou um idioma com traduções cadastradas. |
 | `name` | string | — | Busca parcial por nome, sem diferenciar maiúsculas e minúsculas. |
 | `name_exact` | string | — | Busca pelo nome completo com igualdade (`=`), diferenciando maiúsculas e minúsculas. |
-| `include_tokens` | boolean | `false` | Inclui tokens nos resultados quando `true`. |
+| `kind` | string | — | `cards`, `accessories` ou `all`; classificação nos dados oficiais, independente do idioma. |
+| `include_tokens` | boolean | omitido: `false` | Obsoleto. Sem `kind`, `true` inclui tokens; omitido ou `false` exclui apenas `token` e `double_faced_token`. Não combine com `kind`. |
 | `oracle_text` | string | — | Busca parcial no texto Oracle. |
 | `type_line` | string | — | Busca parcial na linha de tipo. |
 | `colors` | string | — | Cores separadas por vírgula. Aceita somente `W,U,B,R,G`, sem repetição e sem depender da ordem. |
@@ -405,6 +406,48 @@ Regras importantes:
   retornam `400`. Cores duplicadas e componentes vazios, como `U,,R`, também são inválidos.
 - Para custos com chaves, faça URL encoding quando necessário: `{R}` vira `%7BR%7D`.
 - Recomenda-se usar o formato canônico dos idiomas, como `en` e `pt`.
+
+### Cartas e acessórios
+
+Use `kind=cards|accessories|all` para selecionar a categoria:
+
+| Valor | Seleção |
+| --- | --- |
+| `cards` | Exclui todos os acessórios segundo a regra compartilhada com o Deck Builder. |
+| `accessories` | Somente acessórios: tokens, tokens de duas faces, emblemas e tipos oficiais contendo `Dungeon`. |
+| `all` | Sem restrição por categoria; inclui cartas e acessórios. Os demais filtros continuam valendo. |
+
+A classificação usa exclusivamente os campos **principais oficiais** em `oracle_cards`:
+layout igual a `token`, `double_faced_token` ou `emblem`, ou `type_line` contendo a
+substring literal `Dungeon`, diferenciando maiúsculas de minúsculas. É a mesma regra
+do Deck Builder. O tipo traduzido e os tipos isolados das faces não alteram a categoria.
+Os demais documentos são tratados como `cards`, inclusive layouts especiais não
+abrangidos por essa regra, como `planar` e `scheme`, e documentos sem esses metadados.
+
+`kind` é aplicado antes da paginação e combina com os demais filtros por `AND`, sem
+alterar a correspondência na mesma face. Em português, acessórios ainda precisam de
+tradução válida para aparecer na busca; não há fallback automático.
+
+```http
+GET /cards/search?lang=en&kind=cards
+GET /cards/search?lang=en&kind=accessories
+GET /cards/search?lang=pt&kind=accessories
+GET /cards/search?lang=en&kind=all&name_exact=Ornithopter
+```
+
+**Transição de `include_tokens`:** o parâmetro está marcado como obsoleto no OpenAPI.
+Sem `kind`, o comportamento existente permanece: omitido ou `false` exclui apenas
+os layouts `token` e `double_faced_token`; `true` não exclui layouts. Portanto,
+`include_tokens=false` ainda permite emblemas e dungeons e não equivale a `kind=cards`.
+
+Enviar `kind` junto de `include_tokens` retorna `400`, mesmo com `include_tokens=false`
+ou com valores aparentemente equivalentes. Não há precedência silenciosa entre os
+parâmetros. Ao migrar o frontend, remova `include_tokens` e envie apenas `kind`.
+Valores de `kind` são em inglês e minúsculos; valores desconhecidos ou vazios são inválidos.
+Omitir `kind` preserva a regra legada, não assume `cards`.
+
+Esse filtro não restringe a consulta individual, a consulta em lote nem a resolução
+de IDs, que continuam permitindo acesso aos acessórios solicitados.
 
 ### Operadores de cores e seleção de incolores
 
@@ -473,7 +516,7 @@ GET /cards/search?lang=en&format=modern&legality=banned&colors=R
 - As respostas da busca e da consulta individual incluem o mapa completo
   `legalities`, inclusive em traduções. Cartas antigas sem o campo retornam `{}`.
 - O idioma padrão continua sendo `pt` e exige tradução cadastrada. Use `lang=en`
-  para pesquisar todo o catálogo oficial. A exclusão padrão de tokens é preservada.
+  para pesquisar todo o catálogo oficial. Sem `kind`, a exclusão padrão de tokens é preservada.
 - Os status refletem a última sincronização local; a busca não consulta o Scryfall.
   Sem correspondências, a busca retorna `200` com `items: []` e `hasNext: false`.
 
@@ -493,11 +536,11 @@ curl 'http://localhost:8002/cards/search?lang=en&name_exact=Lightning%20Bolt'
 ```
 
 O nome exato pode ser compartilhado por uma carta e um token, como `Ornithopter`.
-As buscas excluem os layouts `token` e `double_faced_token` por padrão, antes da
-paginação, em qualquer idioma. Use
-`/cards/search?lang=en&name_exact=Ornithopter` para buscar a carta; acrescente
-`&include_tokens=true` para incluir também os tokens. O catálogo e a consulta
-direta por `oracle_id` continuam permitindo acesso aos tokens.
+Sem `kind`, as buscas excluem os layouts `token` e `double_faced_token` por padrão,
+antes da paginação e em qualquer idioma. Use
+`/cards/search?lang=en&name_exact=Ornithopter&kind=cards` para buscar a carta;
+troque por `kind=all` para incluir os tokens de mesmo nome. Consultas individuais
+e em lote por `oracle_id` continuam permitindo acesso aos tokens.
 
 Se `name` e `name_exact` forem informados juntos, ambos devem corresponder (`AND`).
 

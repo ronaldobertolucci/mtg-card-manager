@@ -414,3 +414,41 @@ def test_color_filters_are_described_in_openapi(card_client):
     assert mode["enum"] == ["any", "all", "exact"]
     assert not fields["colors_mode"]["required"]
     assert fields["colorless"]["schema"]["anyOf"][0]["type"] == "boolean"
+
+
+@pytest.mark.parametrize("kind", ["cards", "accessories", "all"])
+@pytest.mark.parametrize("include_tokens", ["true", "false"])
+def test_kind_and_legacy_parameter_conflict_before_io(card_client, kind, include_tokens):
+    client, repository = card_client
+    response = client.get("/cards/search", params={"kind": kind, "include_tokens": include_tokens})
+    assert response.status_code == 400
+    repository.search_oracle_cards.assert_not_awaited()
+    repository.search_translation_matches.assert_not_awaited()
+
+
+@pytest.mark.parametrize("kind", ["cards", "accessories", "all"])
+def test_kind_without_other_filters_is_accepted(card_client, kind):
+    client, repository = card_client
+    repository.search_oracle_cards.return_value = []
+    response = client.get("/cards/search", params={"lang": "en", "kind": kind})
+    assert response.status_code == 200
+    query = repository.search_oracle_cards.call_args.args[0]
+    assert query.kind == kind
+    assert query.include_tokens is None
+
+
+@pytest.mark.parametrize("kind", ["", "tokens", "cartas", "CARDS"])
+def test_unknown_kind_is_rejected(card_client, kind):
+    client, repository = card_client
+    assert client.get("/cards/search", params={"kind": kind}).status_code == 400
+    repository.search_oracle_cards.assert_not_awaited()
+
+
+def test_kind_and_deprecated_include_tokens_in_openapi(card_client):
+    client, _ = card_client
+    parameters = client.get("/openapi.json").json()["paths"]["/cards/search"]["get"]["parameters"]
+    fields = {param["name"]: param for param in parameters}
+    assert fields["kind"]["schema"]["anyOf"][0]["enum"] == ["cards", "accessories", "all"]
+    assert not fields["kind"]["required"]
+    assert fields["include_tokens"]["schema"]["deprecated"] is True
+    assert fields["include_tokens"]["deprecated"] is True

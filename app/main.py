@@ -49,6 +49,9 @@ def custom_openapi() -> dict:
         )
         # The search validation handler returns 400, never FastAPI's default 422.
         schema["paths"]["/cards/search"]["get"]["responses"].pop("422", None)
+        for parameter in schema["paths"]["/cards/search"]["get"]["parameters"]:
+            if parameter["name"] == "include_tokens":
+                parameter["deprecated"] = True
         app.openapi_schema = schema
     return app.openapi_schema
 

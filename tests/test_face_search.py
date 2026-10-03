@@ -423,3 +423,109 @@ async def test_exact_color_filter_runs_before_pagination(color_catalog, lang):
         "f-ur", "g-ru", "j-multi",
     ]
     assert first.has_next and second.has_next and not last.has_next
+
+
+@pytest_asyncio.fixture
+async def accessory_catalog(catalog):
+    database, service = catalog
+    definitions = [
+        ("a-token", "token", "Token Creature"),
+        ("b-double-token", "double_faced_token", "Token Creature"),
+        ("c-emblem", "emblem", "Emblem"),
+        ("d-dungeon", "normal", "Dungeon"),
+        ("e-dungeon-type", "normal", "Legendary Dungeon — Undercity"),
+        ("f-card", "normal", "Creature — Wizard"),
+        ("g-missing", None, None),
+        ("h-plane", "planar", "Plane — Test"),
+        ("i-scheme", "scheme", "Scheme"),
+        ("j-dungeon-subtype", "normal", "Creature — Dungeon Master"),
+        ("k-lowercase", "normal", "dungeon"),
+    ]
+    for identity, layout, type_line in definitions:
+        card = {"_id": identity, "id": identity, "oracle_id": identity, "name": "H5 Shared",
+                "colors": ["U"], "power": "2", "legalities": {"vintage": "legal"}}
+        if layout is not None:
+            card["layout"] = layout
+        if type_line is not None:
+            card["type_line"] = type_line
+        # Translated type deliberately disagrees with the original classification.
+        translation = {"oracle_id": identity, "lang": "pt", "name": "H5 Compartilhado",
+                       "type_line": "Dungeon" if identity == "f-card" else "Tipo traduzido"}
+        await database.oracle_cards.insert_one(card)
+        await database.translations.insert_one(translation)
+    return database, service
+
+
+@pytest.mark.parametrize("lang", ["en", "pt"])
+@pytest.mark.parametrize("filters,expected", [
+    ({"kind": "accessories"}, {"a-token", "b-double-token", "c-emblem", "d-dungeon",
+                               "e-dungeon-type", "j-dungeon-subtype"}),
+    ({"kind": "cards"}, {"f-card", "g-missing", "h-plane", "i-scheme", "k-lowercase"}),
+    ({"kind": "all"}, {"a-token", "b-double-token", "c-emblem", "d-dungeon", "e-dungeon-type",
+                       "f-card", "g-missing", "h-plane", "i-scheme", "j-dungeon-subtype",
+                       "k-lowercase"}),
+    ({}, {"c-emblem", "d-dungeon", "e-dungeon-type", "f-card", "g-missing", "h-plane",
+          "i-scheme", "j-dungeon-subtype", "k-lowercase"}),
+    ({"include_tokens": False}, {"c-emblem", "d-dungeon", "e-dungeon-type", "f-card", "g-missing",
+                                "h-plane", "i-scheme", "j-dungeon-subtype", "k-lowercase"}),
+    ({"include_tokens": True}, {"a-token", "b-double-token", "c-emblem", "d-dungeon",
+                               "e-dungeon-type", "f-card", "g-missing", "h-plane", "i-scheme",
+                               "j-dungeon-subtype", "k-lowercase"}),
+])
+async def test_kind_matches_deck_builder_independently_of_translation(
+    accessory_catalog, lang, filters, expected
+):
+    _, service = accessory_catalog
+    page = await service.search(SearchParams(lang=lang, name="H5", **filters))
+    assert {card.oracle_id for card in page.items} == expected
+
+
+@pytest.mark.parametrize("lang", ["en", "pt"])
+async def test_kind_filters_before_pagination_and_combines_with_color_and_format(
+    accessory_catalog, lang
+):
+    _, service = accessory_catalog
+    first = await service.search(SearchParams(
+        lang=lang, name="H5", kind="cards", colors="U", colors_mode="any",
+        format="vintage", limit=1,
+    ))
+    last = await service.search(SearchParams(
+        lang=lang, name="H5", kind="cards", colors="U", colors_mode="any", format="vintage",
+        limit=1, offset=4,
+    ))
+    assert [card.oracle_id for card in first.items] == ["f-card"]
+    assert first.has_next
+    assert [card.oracle_id for card in last.items] == ["k-lowercase"]
+    assert not last.has_next
+
+
+@pytest.mark.parametrize("lang,text", [("en", "Flying"), ("pt", "Voar")])
+async def test_accessory_filter_does_not_override_same_face_matching(catalog, lang, text):
+    database, service = catalog
+    await database.oracle_cards.update_one(
+        {"_id": "multi"}, {"$set": {"layout": "double_faced_token"}}
+    )
+    page = await service.search(SearchParams(
+        lang=lang, kind="accessories", oracle_text=text, power="4",
+    ))
+    assert [card.oracle_id for card in page.items] == ["multi"]
+    wrong_face = await service.search(SearchParams(
+        lang=lang, kind="accessories", oracle_text=text, power="2",
+    ))
+    assert wrong_face.items == []
+    cards = await service.search(SearchParams(lang=lang, kind="cards", oracle_text=text))
+    assert [card.oracle_id for card in cards.items] == ["normal"]
+
+
+async def test_accessory_classification_uses_root_type_only_and_does_not_change_batch(catalog):
+    from app.schemas import BatchCardsRequest
+
+    database, service = catalog
+    await database.oracle_cards.update_one(
+        {"_id": "multi"}, {"$set": {"card_faces.1.type_line": "Dungeon"}}
+    )
+    assert (await service.search(SearchParams(lang="en", kind="accessories"))).items == []
+    await database.oracle_cards.update_one({"_id": "normal"}, {"$set": {"layout": "token"}})
+    assert (await service.get_by_oracle_id("normal", "pt")).oracle_id == "normal"
+    batch = await service.batch(BatchCardsRequest(oracleIds=["normal"], lang="pt"))
+    assert [card.oracle_id for card in batch.cards] == ["normal"]

@@ -85,7 +85,17 @@ def _oracle_card_filter(
     query: Document = {}
     if params.format is not None:
         query[f"legalities.{params.format}"] = {"$in": params.legality}
-    if not params.include_tokens:
+    # Match Deck Builder's ResolvedCardResponse.isAccessory using official root data.
+    # Keep classification separate from the OR branches used for same-face matching.
+    accessory_conditions = [
+        {"layout": {"$in": ["token", "double_faced_token", "emblem"]}},
+        {"type_line": {"$regex": "Dungeon"}},
+    ]
+    if params.kind == "accessories":
+        query["$and"] = [{"$or": accessory_conditions}]
+    elif params.kind == "cards":
+        query["$nor"] = accessory_conditions
+    elif params.kind is None and not params.include_tokens:
         query["layout"] = {"$nin": ["token", "double_faced_token"]}
     if "cmc" in attributes:
         query["cmc"] = attributes.pop("cmc")

@@ -80,9 +80,16 @@ class SearchParams(BaseModel):
     )
     limit: int = Field(default=50, ge=1, le=200)
     offset: int = Field(default=0, ge=0, le=100_000)
-    include_tokens: bool = Field(
-        default=False,
-        description="Include token and double-faced token layouts in search results.",
+    kind: Literal["cards", "accessories", "all"] | None = Field(
+        default=None,
+        description="Filter by official whole-card classification, independently of language. "
+        "Omission preserves legacy token filtering. Cannot be combined with include_tokens.",
+    )
+    include_tokens: bool | None = Field(
+        default=None,
+        description="Deprecated: prefer kind. Without kind, omission or false excludes only "
+        "token and double_faced_token layouts; true includes them.",
+        json_schema_extra={"deprecated": True},
     )
 
     @field_validator("format", mode="before")
@@ -126,6 +133,8 @@ class SearchParams(BaseModel):
 
     @model_validator(mode="after")
     def validate_filters(self) -> "SearchParams":
+        if self.kind is not None and self.include_tokens is not None:
+            raise ValueError("kind cannot be combined with include_tokens")
         if self.colorless is not None and (
             self.colors is not None or self.colors_mode is not None
         ):
