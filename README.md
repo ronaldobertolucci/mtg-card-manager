@@ -385,6 +385,9 @@ GET /cards/search?lang=pt&limit=50&offset=0
 | `colors` | string | — | Cores separadas por vírgula. Aceita somente `W,U,B,R,G`, sem repetição e sem depender da ordem. |
 | `colors_mode` | string | omitido: `exact` | Operador `any`, `all` ou `exact`; exige `colors`. |
 | `colorless` | boolean | — | `true`: cores conhecidas e vazias; `false`: cores conhecidas e não vazias. Não pode ser combinado com `colors` ou `colors_mode`. |
+| `color_identity` | string | — | Identidade da carta inteira, com cores `W,U,B,R,G` separadas por vírgula, sem repetição. |
+| `color_identity_mode` | string | omitido: `exact` | `any`, `all`, `exact` ou `subset`; exige `color_identity`. |
+| `identity_colorless` | boolean | — | `true`: identidade conhecida vazia; `false`: identidade conhecida não vazia. Incompatível com `color_identity` e `color_identity_mode`. |
 | `mana_cost` | string | — | Correspondência exata do custo, por exemplo `{R}` ou `{1}{U}`. |
 | `cmc` | número | — | Valor de mana exato, maior ou igual a zero. |
 | `cmc_gte` | número | — | Valor de mana mínimo, inclusivo. |
@@ -488,6 +491,46 @@ GET /cards/search?lang=en&colors=R,U&colors_mode=all
 GET /cards/search?lang=pt&colors=U,R&colors_mode=exact
 GET /cards/search?lang=en&colorless=true
 ```
+
+### Identidade de cor e Commander
+
+Identidade e cores são filtros independentes, combinados com `AND`. A identidade
+vem exclusivamente de `color_identity` da carta inteira, nunca de uma face ou de
+um texto traduzido. Uma face incolor pode pertencer a uma carta de identidade colorida.
+
+| Operador com `color_identity=U,R` | Seleção |
+| --- | --- |
+| `any` | A identidade contém azul ou vermelho; outras cores são permitidas. |
+| `all` | A identidade contém azul e vermelho; outras cores são permitidas. |
+| `exact` ou operador omitido | A identidade contém somente azul e vermelho. |
+| `subset` | A identidade não contém cores fora de azul/vermelho: aceita `[]`, `[U]`, `[R]` e `[U,R]`. |
+
+Todas as comparações ignoram a ordem. `identity_colorless=true` exige identidade
+conhecida vazia; `identity_colorless=false` exige identidade conhecida não vazia.
+Identidade ausente ou `null` é desconhecida e não corresponde a nenhum filtro de
+identidade, inclusive `subset`. Omitir os filtros de identidade não exclui esses dados.
+
+Para Commander, envie a união das identidades dos comandantes em `color_identity`
+e use `color_identity_mode=subset`. Acrescente `format=commander` para filtrar também
+legalidade e `kind=cards` para excluir acessórios. A API não calcula essa união nem
+substitui as demais validações de construção do Deck Builder.
+
+```http
+GET /cards/search?lang=en&kind=cards&format=commander&color_identity=U,R&color_identity_mode=subset
+GET /cards/search?lang=pt&identity_colorless=true
+GET /cards/search?lang=en&colorless=true&color_identity=U,R&color_identity_mode=exact
+```
+
+`color_identity=` com operador omitido, `exact` ou `subset` seleciona somente
+identidades conhecidas vazias; é útil para comandantes incolores. Com `any` ou `all`,
+a seleção vazia é inválida. As mesmas regras de letras, espaços, duplicação e
+componentes vazios usadas em `colors` se aplicam à identidade. Um operador sem
+`color_identity`, valores desconhecidos ou qualquer combinação de `identity_colorless`
+com `color_identity`/`color_identity_mode` retorna `400`.
+
+Combinar `colors`/`colorless` com filtros de identidade é permitido. Os filtros
+textuais e mecânicos continuam exigindo correspondência na mesma face, enquanto a
+identidade restringe a carta inteira, antes da paginação e de `hasNext`.
 
 ### Legalidade por formato
 

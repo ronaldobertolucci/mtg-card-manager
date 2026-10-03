@@ -529,3 +529,78 @@ async def test_accessory_classification_uses_root_type_only_and_does_not_change_
     assert (await service.get_by_oracle_id("normal", "pt")).oracle_id == "normal"
     batch = await service.batch(BatchCardsRequest(oracleIds=["normal"], lang="pt"))
     assert [card.oracle_id for card in batch.cards] == ["normal"]
+
+
+@pytest_asyncio.fixture
+async def identity_catalog(color_catalog, catalog):
+    database, _ = catalog
+    for identity, value in {
+        "b-null": None, "c-empty": [], "d-u": ["R"], "e-r": ["U"],
+        "f-ur": ["U", "R"], "g-ru": ["R", "U"], "h-wur": ["W", "U", "R"],
+        "i-split": ["U", "R"], "j-multi": ["U", "R"],
+    }.items():
+        await database.oracle_cards.update_one(
+            {"_id": identity}, {"$set": {"color_identity": value}}
+        )
+    return color_catalog
+
+
+@pytest.mark.parametrize("lang", ["en", "pt"])
+@pytest.mark.parametrize("colors", ["U,R", "R,U"])
+@pytest.mark.parametrize("mode,expected", [
+    ("any", {"d-u", "e-r", "f-ur", "g-ru", "h-wur", "i-split", "j-multi"}),
+    ("all", {"f-ur", "g-ru", "h-wur", "i-split", "j-multi"}),
+    ("exact", {"f-ur", "g-ru", "i-split", "j-multi"}),
+    (None, {"f-ur", "g-ru", "i-split", "j-multi"}),
+    ("subset", {"c-empty", "d-u", "e-r", "f-ur", "g-ru", "i-split", "j-multi"}),
+])
+async def test_identity_operators_match_whole_card(identity_catalog, lang, colors, mode, expected):
+    page = await identity_catalog.search(SearchParams(
+        lang=lang, name="H4", color_identity=colors, color_identity_mode=mode,
+    ))
+    assert {card.oracle_id for card in page.items} == expected
+
+
+@pytest.mark.parametrize("lang", ["en", "pt"])
+@pytest.mark.parametrize("filters,expected", [
+    ({"identity_colorless": True}, {"c-empty"}),
+    ({"identity_colorless": False}, {"d-u", "e-r", "f-ur", "g-ru", "h-wur", "i-split", "j-multi"}),
+    ({"color_identity": "", "color_identity_mode": "subset"}, {"c-empty"}),
+    ({"color_identity": ""}, {"c-empty"}),
+    ({"color_identity": "U", "color_identity_mode": "subset"}, {"c-empty", "e-r"}),
+])
+async def test_identity_unknown_is_not_colorless(identity_catalog, lang, filters, expected):
+    page = await identity_catalog.search(SearchParams(lang=lang, name="H4", **filters))
+    assert {card.oracle_id for card in page.items} == expected
+
+
+@pytest.mark.parametrize("lang,text", [("en", "Flying"), ("pt", "Voar")])
+async def test_identity_and_face_colors_are_independent(identity_catalog, lang, text):
+    page = await identity_catalog.search(SearchParams(
+        lang=lang, name="H4", colorless=True, color_identity="U,R", color_identity_mode="exact",
+        oracle_text=text, power="4",
+    ))
+    assert [card.oracle_id for card in page.items] == ["j-multi"]
+    page = await identity_catalog.search(SearchParams(
+        lang=lang, name="H4", colors="R", color_identity="U", color_identity_mode="subset",
+    ))
+    assert [card.oracle_id for card in page.items] == ["e-r"]
+    wrong_face = await identity_catalog.search(SearchParams(
+        lang=lang, name="H4", colorless=True, color_identity="U,R", color_identity_mode="subset",
+        oracle_text=text, power="2",
+    ))
+    assert wrong_face.items == []
+
+
+@pytest.mark.parametrize("lang", ["en", "pt"])
+async def test_identity_combines_kind_legality_and_pagination(identity_catalog, catalog, lang):
+    database, _ = catalog
+    await database.oracle_cards.update_many({}, {"$set": {"legalities.commander": "legal"}})
+    await database.oracle_cards.update_one({"_id": "c-empty"}, {"$set": {"layout": "token"}})
+    pages = [await identity_catalog.search(SearchParams(
+        lang=lang, name="H4", kind="cards", format="commander", limit=1, offset=offset,
+        color_identity="U", color_identity_mode="subset",
+    )) for offset in (0, 1)]
+    assert [card.oracle_id for card in pages[0].items] == ["e-r"]
+    assert not pages[0].has_next
+    assert pages[1].items == [] and not pages[1].has_next

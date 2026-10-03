@@ -66,6 +66,18 @@ class SearchParams(BaseModel):
         description="True: known empty colors; false: known nonempty colors. "
         "Cannot be combined with colors or colors_mode. Omission does not filter colorlessness.",
     )
+    color_identity: list[str] | None = Field(
+        default=None, description="Whole-card identity colors W,U,B,R,G, comma-separated."
+    )
+    color_identity_mode: Literal["any", "all", "exact", "subset"] | None = Field(
+        default=None,
+        description="Identity operator; omission means exact. Requires color_identity. "
+        "Subset allows only identities contained in the selected colors, including empty identity.",
+    )
+    identity_colorless: bool | None = Field(
+        default=None, description="True: known empty identity; false: known nonempty identity. "
+        "Cannot be combined with color_identity or color_identity_mode.",
+    )
     mana_cost: str | None = Field(default=None, max_length=100)
     cmc: float | None = Field(default=None, ge=0)
     cmc_gte: float | None = Field(default=None, ge=0)
@@ -108,31 +120,41 @@ class SearchParams(BaseModel):
         parts = (part.strip().lower() for item in values for part in item.split(","))
         return list(dict.fromkeys(parts))
 
-    @field_validator("colors", mode="before")
+    @field_validator("colors", "color_identity", mode="before")
     @classmethod
     def parse_colors(cls, value: Any) -> Any:
         if value is None:
             return value
         values = value if isinstance(value, list) else [value]
         if any(not isinstance(item, str) for item in values):
-            raise ValueError("colors must be a comma-separated string")
+            raise ValueError("color selection must be a comma-separated string")
         # Keep the legacy explicit empty selection, but reject empty comma components.
         if values == [""] or values == []:
             return []
         return [color.strip().upper() for item in values for color in item.split(",")]
 
-    @field_validator("colors")
+    @field_validator("colors", "color_identity")
     @classmethod
     def validate_colors(cls, value: list[str] | None) -> list[str] | None:
         if value is None:
             return value
         allowed = {"W", "U", "B", "R", "G"}
         if len(value) != len(set(value)) or any(color not in allowed for color in value):
-            raise ValueError("colors must contain unique values from W,U,B,R,G")
+            raise ValueError("color selection must contain unique values from W,U,B,R,G")
         return value
 
     @model_validator(mode="after")
     def validate_filters(self) -> "SearchParams":
+        if self.identity_colorless is not None and (
+            self.color_identity is not None or self.color_identity_mode is not None
+        ):
+            raise ValueError(
+                "identity_colorless cannot be combined with color_identity or color_identity_mode"
+            )
+        if self.color_identity_mode is not None and self.color_identity is None:
+            raise ValueError("color_identity_mode requires color_identity")
+        if self.color_identity == [] and self.color_identity_mode in ("any", "all"):
+            raise ValueError("any/all require an identity color; use identity_colorless=true")
         if self.kind is not None and self.include_tokens is not None:
             raise ValueError("kind cannot be combined with include_tokens")
         if self.colorless is not None and (

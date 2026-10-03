@@ -83,6 +83,24 @@ def _oracle_card_filter(
 ) -> Document:
     attributes = _attribute_filter(params)
     query: Document = {}
+    # Identity belongs to the whole card, never to the face matched by other filters.
+    if params.identity_colorless is True or params.color_identity == []:
+        query["color_identity"] = {"$size": 0}
+    elif params.identity_colorless is False:
+        query["color_identity"] = {"$type": "array", "$ne": []}
+    elif params.color_identity is not None:
+        if params.color_identity_mode == "subset":
+            query["color_identity"] = {
+                "$type": "array", "$not": {"$elemMatch": {"$nin": params.color_identity}}
+            }
+        elif params.color_identity_mode == "any":
+            query["color_identity"] = {"$type": "array", "$in": params.color_identity}
+        elif params.color_identity_mode == "all":
+            query["color_identity"] = {"$type": "array", "$all": params.color_identity}
+        else:
+            query["color_identity"] = {
+                "$all": params.color_identity, "$size": len(params.color_identity)
+            }
     if params.format is not None:
         query[f"legalities.{params.format}"] = {"$in": params.legality}
     # Match Deck Builder's ResolvedCardResponse.isAccessory using official root data.

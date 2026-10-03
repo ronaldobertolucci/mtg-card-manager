@@ -452,3 +452,51 @@ def test_kind_and_deprecated_include_tokens_in_openapi(card_client):
     assert not fields["kind"]["required"]
     assert fields["include_tokens"]["schema"]["deprecated"] is True
     assert fields["include_tokens"]["deprecated"] is True
+
+
+@pytest.mark.parametrize("query", [
+    {"color_identity_mode": "subset"}, {"color_identity_mode": "exact"},
+    {"color_identity": "U", "color_identity_mode": "unknown"},
+    {"color_identity": "", "color_identity_mode": "any"},
+    {"color_identity": "", "color_identity_mode": "all"},
+    {"color_identity": "U", "identity_colorless": "true"},
+    {"color_identity": "U", "identity_colorless": "false"},
+    {"color_identity_mode": "exact", "identity_colorless": "true"},
+    {"color_identity": "U,U"}, {"color_identity": "C"},
+    {"color_identity": "U,"}, {"color_identity": "U,,R"},
+])
+def test_identity_invalid_queries_return_400_before_io(card_client, query):
+    client, repository = card_client
+    assert client.get("/cards/search", params=query).status_code == 400
+    repository.search_oracle_cards.assert_not_awaited()
+    repository.search_translation_matches.assert_not_awaited()
+
+
+@pytest.mark.parametrize("query,identity,mode,colorless", [
+    ({"color_identity": " r,u ", "color_identity_mode": "subset"}, ["R", "U"], "subset", None),
+    ({"color_identity": "U,R", "color_identity_mode": "any"}, ["U", "R"], "any", None),
+    ({"color_identity": "U,R", "color_identity_mode": "all"}, ["U", "R"], "all", None),
+    ({"color_identity": "U,R"}, ["U", "R"], None, None),
+    ({"color_identity": "", "color_identity_mode": "subset"}, [], "subset", None),
+    ({"identity_colorless": "true"}, None, None, True),
+    ({"identity_colorless": "false"}, None, None, False),
+])
+def test_identity_query_contract(card_client, query, identity, mode, colorless):
+    client, repository = card_client
+    repository.search_oracle_cards.return_value = []
+    response = client.get("/cards/search", params={"lang": "en", **query})
+    assert response.status_code == 200
+    params = repository.search_oracle_cards.call_args.args[0]
+    assert params.color_identity == identity
+    assert params.color_identity_mode == mode
+    assert params.identity_colorless is colorless
+
+
+def test_identity_openapi_contract(card_client):
+    client, _ = card_client
+    parameters = client.get("/openapi.json").json()["paths"]["/cards/search"]["get"]["parameters"]
+    fields = {param["name"]: param for param in parameters}
+    assert fields["color_identity_mode"]["schema"]["anyOf"][0]["enum"] == [
+        "any", "all", "exact", "subset",
+    ]
+    assert fields["identity_colorless"]["schema"]["anyOf"][0]["type"] == "boolean"
