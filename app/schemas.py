@@ -219,6 +219,16 @@ class CardFaceResponse(CardContract):
     illustration_id: str | None = None
 
 
+class RelatedCardResponse(CardContract):
+    """Official related printing, used to resolve generated accessories."""
+
+    id: str
+    component: str | None = None
+    name: str | None = None
+    type_line: str | None = None
+    uri: str | None = None
+
+
 class CardResponse(CardContract):
     """Public card contract. Uncontracted source fields are not exposed."""
 
@@ -232,6 +242,15 @@ class CardResponse(CardContract):
         default=None, description="Source layout identifier; null when unavailable."
     )
     legalities: dict[str, Legality] = Field(default_factory=dict)
+    keywords: list[str] = Field(default_factory=list)
+    produced_mana: list[str] = Field(
+        default_factory=list, description="Source mana symbols, including C and special symbols."
+    )
+    rarity: str | None = None
+    all_parts: list[RelatedCardResponse] = Field(
+        default_factory=list, description="Official related printings; texts are not translated."
+    )
+
     name: str
     oracle_text: str | None = None
     type_line: str | None = None
@@ -256,6 +275,11 @@ class CardResponse(CardContract):
     card_faces: list[CardFaceResponse] = Field(
         default_factory=list, description="Ordered faces; [] when no faces are supplied."
     )
+
+    @field_validator("keywords", "produced_mana", "all_parts", mode="before")
+    @classmethod
+    def normalize_optional_lists(cls, value):
+        return [] if value is None else value
 
 
 TranslationUnavailableReason = Literal["translation_missing", "translation_invalid"]

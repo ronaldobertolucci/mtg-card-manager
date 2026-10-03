@@ -240,6 +240,49 @@ def test_public_card_contract_preserves_printing_and_hides_source_extras(card_cl
     assert card["card_faces"] == []
 
 
+@pytest.mark.parametrize("lang", ["en", "pt"])
+@pytest.mark.parametrize("endpoint", ["lookup", "search", "batch"])
+def test_deck_builder_fields_survive_public_serialization(card_client, lang, endpoint):
+    client, repository = card_client
+    source = repository.get_by_oracle_id.return_value
+    expected = {
+        "keywords": ["Companion"], "produced_mana": ["W", "C", "T"], "rarity": "rare",
+        "all_parts": [{
+            "id": "3ad02b56-13ec-46ef-92bd-ae078b8bb517", "component": "token",
+            "name": "Treasure", "type_line": "Token Artifact — Treasure",
+            "uri": "https://example.test/treasure",
+        }],
+    }
+    source.update(expected)
+    source["all_parts"] = [{**expected["all_parts"][0], "internal": "hidden"}]
+    repository.search_oracle_cards.return_value = [source]
+    repository.search_translation_matches.return_value = {"oracle-1": None}
+    repository.get_by_oracle_ids.return_value = [source]
+    if endpoint == "batch":
+        response = client.post("/cards/batch", json={"oracleIds": ["oracle-1"], "lang": lang})
+    else:
+        path = "/cards/search" if endpoint == "search" else "/cards/oracle-1"
+        response = client.get(path, params={"lang": lang})
+    assert response.status_code == 200
+    body = response.json()
+    card = body["cards"][0] if endpoint == "batch" else (
+        body["items"][0] if endpoint == "search" else body
+    )
+    assert {field: card[field] for field in expected} == expected
+    assert card["name"] == ("Raio" if lang == "pt" else "Lightning Bolt")
+
+
+@pytest.mark.parametrize("explicit_null", [False, True])
+def test_deck_builder_optional_fields_have_safe_defaults(card_client, explicit_null):
+    client, repository = card_client
+    expected = {"keywords": [], "produced_mana": [], "all_parts": [], "rarity": None}
+    if explicit_null:
+        repository.get_by_oracle_id.return_value.update(dict.fromkeys(expected))
+    response = client.get("/cards/oracle-1?lang=en")
+    assert response.status_code == 200
+    assert {field: response.json()[field] for field in expected} == expected
+
+
 def test_unknown_colors_are_distinct_from_colorless(card_client):
     client, repository = card_client
     source = repository.get_by_oracle_id.return_value
@@ -293,6 +336,12 @@ def test_openapi_documents_dto_public_reads_and_actual_errors(card_client):
     for field in ("layout", "color_identity", "printing_lang", "image_uris", "card_faces"):
         assert field in props
     assert props["card_faces"]["items"]["$ref"].endswith("/CardFaceResponse")
+    for model in ("CardResponse", "BatchCardResponse"):
+        fields = models[model]["properties"]
+        for field in ("keywords", "produced_mana", "rarity", "all_parts"):
+            assert field in fields and field in models[model]["required"]
+        assert fields["all_parts"]["items"]["$ref"].endswith("/RelatedCardResponse")
+    assert models["RelatedCardResponse"]["properties"]["id"]["type"] == "string"
     assert set(models["CardResponse"]["required"]) == set(props)
     assert "additionalProperties" not in models["CardResponse"]
     assert "normal" in models["CardImages"]["properties"]

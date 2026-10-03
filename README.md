@@ -205,6 +205,10 @@ de ser repassados automaticamente ao cliente.
 | `card_faces` | Lista em ordem original; `[]` quando não há faces fornecidas. Cada face tem textos, atributos mecânicos e imagens próprios tipados. |
 | `loyalty` / `defense` | Texto ou `null`, assim como `power` e `toughness`; valores especiais não são convertidos em números. |
 | `legalities` | Mapa de status por formato; `{}` quando ausente, sem inferir legalidade. |
+| `keywords` | Palavras-chave oficiais, preservadas em todos os idiomas; `[]` quando ausentes ou `null` na fonte. Usadas, por exemplo, na validação de Companion. |
+| `produced_mana` | Símbolos de mana produzida, incluindo `C` e símbolos especiais; `[]` quando ausentes ou `null` na fonte. |
+| `rarity` | Raridade da impressão representante, ou `null` quando indisponível. |
+| `all_parts` | Relações oficiais com outras impressões: `id` obrigatório e `component`, `name`, `type_line`, `uri` opcionais (`null` quando ausentes). Os textos dessas relações não são traduzidos. Lista ausente ou `null` na fonte retorna `[]`. |
 
 `mana_cost: ""` é preservado e difere de `null` (não informado).
 Campos textuais opcionais e CMC ausentes continuam `null`. Textos opcionais sem
