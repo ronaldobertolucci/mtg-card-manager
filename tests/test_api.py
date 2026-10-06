@@ -182,7 +182,7 @@ def test_search_legality_contract(card_client, legality, expected):
     response = client.get("/cards/search", params=query)
     assert response.status_code == 200
     params = repository.search_oracle_cards.call_args.args[0]
-    assert params.format == "vintage"
+    assert params.format == ["vintage"]
     assert params.legality == expected
     assert response.json()["items"][0]["legalities"] == {
         "vintage": "restricted", "future_format": "banned"
@@ -191,7 +191,7 @@ def test_search_legality_contract(card_client, legality, expected):
 
 @pytest.mark.parametrize("query", [
     {"legality": "legal", "name": "Bolt"},
-    {"format": "unknown"}, {"format": "vintage.$ne"}, {"format": ""},
+    {"format": "vintage.$ne"}, {"format": ""},
     {"format": "vintage", "legality": "unknown"},
     {"format": "vintage", "legality": ""},
     {"format": "vintage", "legality": "legal,"},
@@ -201,6 +201,19 @@ def test_search_rejects_invalid_legality_filters(card_client, query):
     assert client.get("/cards/search", params=query).status_code == 400
     repository.search_oracle_cards.assert_not_awaited()
     repository.search_translation_matches.assert_not_awaited()
+
+
+@pytest.mark.parametrize("formats", [
+    [("format", " MODERN ,future_format,modern")],
+    [("format", "MODERN"), ("format", "future_format"), ("format", "modern")],
+])
+def test_search_accepts_multiple_dynamic_formats(card_client, formats):
+    client, repository = card_client
+    response = client.get("/cards/search", params=[("lang", "en"), *formats])
+    assert response.status_code == 200
+    params = repository.search_oracle_cards.call_args.args[0]
+    assert params.format == ["modern", "future_format"]
+    assert params.legality == ["legal", "restricted"]
 
 
 def test_legalities_are_preserved_in_translation(card_client):

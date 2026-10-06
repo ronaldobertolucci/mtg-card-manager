@@ -460,19 +460,19 @@ async def accessory_catalog(catalog):
 @pytest.mark.parametrize("filters,expected", [
     ({"kind": "accessories"}, {"a-token", "b-double-token", "c-emblem", "d-dungeon",
                                "e-dungeon-type", "j-dungeon-subtype"}),
-    ({"kind": "cards"}, {"f-card", "g-missing", "h-plane", "i-scheme", "k-lowercase"}),
+    ({"kind": "cards"}, {"f-card", "g-missing", "k-lowercase"}),
     ({"kind": "all"}, {"a-token", "b-double-token", "c-emblem", "d-dungeon", "e-dungeon-type",
                        "f-card", "g-missing", "h-plane", "i-scheme", "j-dungeon-subtype",
                        "k-lowercase"}),
-    ({}, {"c-emblem", "d-dungeon", "e-dungeon-type", "f-card", "g-missing", "h-plane",
-          "i-scheme", "j-dungeon-subtype", "k-lowercase"}),
-    ({"include_tokens": False}, {"c-emblem", "d-dungeon", "e-dungeon-type", "f-card", "g-missing",
-                                "h-plane", "i-scheme", "j-dungeon-subtype", "k-lowercase"}),
+    ({}, {"d-dungeon", "e-dungeon-type", "f-card", "g-missing",
+          "j-dungeon-subtype", "k-lowercase"}),
+    ({"include_tokens": False}, {"d-dungeon", "e-dungeon-type", "f-card", "g-missing",
+                                "j-dungeon-subtype", "k-lowercase"}),
     ({"include_tokens": True}, {"a-token", "b-double-token", "c-emblem", "d-dungeon",
                                "e-dungeon-type", "f-card", "g-missing", "h-plane", "i-scheme",
                                "j-dungeon-subtype", "k-lowercase"}),
 ])
-async def test_kind_matches_deck_builder_independently_of_translation(
+async def test_kind_uses_official_metadata_independently_of_translation(
     accessory_catalog, lang, filters, expected
 ):
     _, service = accessory_catalog
@@ -491,7 +491,7 @@ async def test_kind_filters_before_pagination_and_combines_with_color_and_format
     ))
     last = await service.search(SearchParams(
         lang=lang, name="H5", kind="cards", colors="U", colors_mode="any", format="vintage",
-        limit=1, offset=4,
+        limit=1, offset=2,
     ))
     assert [card.oracle_id for card in first.items] == ["f-card"]
     assert first.has_next
@@ -604,3 +604,68 @@ async def test_identity_combines_kind_legality_and_pagination(identity_catalog, 
     assert [card.oracle_id for card in pages[0].items] == ["e-r"]
     assert not pages[0].has_next
     assert pages[1].items == [] and not pages[1].has_next
+
+
+@pytest.mark.parametrize("lang", ["en", "pt"])
+async def test_physical_cleanup_is_independent_of_legality_and_language(catalog, lang):
+    database, service = catalog
+    layouts = [
+        "token", "double_faced_token", "emblem", "art_series", "planar", "scheme",
+        "vanguard", "normal", "transform", "modal_dfc", "split", "reversible_card",
+    ]
+    documents = [
+        {"id": layout, "oracle_id": layout, "name": "Physical Test", "layout": layout,
+         "oversized": False, "legalities": {"custom_format": "legal"}}
+        for layout in layouts
+    ]
+    documents.extend([
+        {"id": "oversized", "oracle_id": "oversized", "name": "Physical Test",
+         "layout": "normal", "oversized": True, "legalities": {"custom_format": "legal"}},
+        {"id": "missing", "oracle_id": "missing", "name": "Physical Test"},
+        {"id": "banned", "oracle_id": "banned", "name": "Physical Test", "layout": "normal",
+         "legalities": {"custom_format": "banned"}},
+    ])
+    await database.oracle_cards.insert_many(documents)
+    await database.translations.insert_many([
+        {"oracle_id": card["oracle_id"], "lang": "pt", "name": "Physical Test"}
+        for card in documents
+    ])
+    playable = {"normal", "transform", "modal_dfc", "split", "reversible_card"}
+    for kind in (None, "cards"):
+        params = {"lang": lang, "name_exact": "Physical Test", "kind": kind}
+        page = await service.search(SearchParams(**params))
+        assert {card.oracle_id for card in page.items} == playable | {"missing", "banned"}
+        legal = await service.search(SearchParams(**params, format="custom_format"))
+        assert {card.oracle_id for card in legal.items} == playable
+    for options in ({"kind": "all"}, {"include_tokens": True}):
+        page = await service.search(SearchParams(lang=lang, name_exact="Physical Test", **options))
+        assert {card.oracle_id for card in page.items} == {card["oracle_id"] for card in documents}
+
+
+@pytest.mark.parametrize("lang,text", [("en", "Flying"), ("pt", "Voar")])
+@pytest.mark.parametrize("kind", [None, "cards", "accessories"])
+async def test_multiple_formats_preserve_faces_identity_cmc_and_pagination(
+    catalog, lang, text, kind
+):
+    database, service = catalog
+    await database.oracle_cards.update_one({"_id": "multi"}, {"$set": {
+        "legalities": {"modern": "banned", "custom_format": "restricted"},
+        "color_identity": ["U"],
+        "layout": "token" if kind == "accessories" else "transform",
+    }})
+    await database.oracle_cards.update_one({"_id": "normal"}, {"$set": {
+        "legalities": {"modern": "legal", "custom_format": "banned"},
+        "color_identity": ["U"], "layout": "token" if kind == "accessories" else "normal",
+    }})
+    params = {"lang": lang, "kind": kind, "format": "modern,custom_format",
+              "color_identity": "U", "color_identity_mode": "subset", "oracle_text": text}
+    first = await service.search(SearchParams(**params, limit=1))
+    last = await service.search(SearchParams(**params, limit=1, offset=1))
+    assert [card.oracle_id for page in (first, last) for card in page.items] == ["multi", "normal"]
+    assert first.has_next and not last.has_next
+    same_face = await service.search(SearchParams(**params, power="4", cmc_gte=2, cmc_lte=4))
+    assert [card.oracle_id for card in same_face.items] == ["multi"]
+    assert (await service.search(SearchParams(**params, power="2"))).items == []
+    assert (await service.search(SearchParams(**params, power="4", cmc=1))).items == []
+    legal_only = await service.search(SearchParams(**params, legality="legal"))
+    assert [card.oracle_id for card in legal_only.items] == ["normal"]

@@ -2,7 +2,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.legalities import GameFormat, Legality
+from app.legalities import Legality
 from app.translation_schemas import LANGUAGE_PATTERN, normalize_language
 
 
@@ -84,7 +84,12 @@ class SearchParams(BaseModel):
     cmc_lte: float | None = Field(default=None, ge=0)
     power: str | None = Field(default=None, max_length=20)
     toughness: str | None = Field(default=None, max_length=20)
-    format: GameFormat | None = Field(default=None, description="Scryfall format identifier.")
+    format: list[
+        Annotated[str, Field(min_length=1, max_length=100, pattern=r"^[a-z][a-z0-9_]*$")]
+    ] | None = Field(
+        default=None, min_length=1,
+        description="Dynamic format identifiers (OR), comma-separated or repeated parameters.",
+    )
     legality: list[Legality] | None = Field(
         default=None,
         min_length=1,
@@ -95,19 +100,26 @@ class SearchParams(BaseModel):
     kind: Literal["cards", "accessories", "all"] | None = Field(
         default=None,
         description="Filter by official whole-card classification, independently of language. "
-        "Omission preserves legacy token filtering. Cannot be combined with include_tokens.",
+        "Omission excludes non-deck layouts and oversized cards. "
+        "Cannot be combined with include_tokens.",
     )
     include_tokens: bool | None = Field(
         default=None,
         description="Deprecated: prefer kind. Without kind, omission or false excludes only "
-        "token and double_faced_token layouts; true includes them.",
+        "non-deck layouts and oversized cards; true includes them.",
         json_schema_extra={"deprecated": True},
     )
 
     @field_validator("format", mode="before")
     @classmethod
     def normalize_format(cls, value: Any) -> Any:
-        return value.strip().lower() if isinstance(value, str) else value
+        if value is None:
+            return value
+        values = [value] if isinstance(value, str) else value
+        if not isinstance(values, list) or any(not isinstance(item, str) for item in values):
+            raise ValueError("format must be a comma-separated string or list of identifiers")
+        parts = (part.strip().lower() for item in values for part in item.split(","))
+        return list(dict.fromkeys(parts))
 
     @field_validator("legality", mode="before")
     @classmethod

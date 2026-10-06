@@ -9,6 +9,10 @@ from app.schemas import SearchParams
 Document = dict[str, Any]
 # None permits root/any-face matching; indices restrict mechanics to translated faces.
 TranslationMatches = Mapping[str, list[int] | None]
+# Physical components outside a normal deck; never infer playability from legality.
+NON_DECK_LAYOUTS = (
+    "token", "double_faced_token", "emblem", "art_series", "planar", "scheme", "vanguard",
+)
 
 
 class CardRepository(Protocol):
@@ -78,11 +82,20 @@ def _root_or_face_filter(filters: Document) -> Document:
     return {"$or": [filters, {"card_faces": {"$elemMatch": filters}}]}
 
 
+def _conjoin(*filters: Document) -> Document:
+    """Compose independent predicates without merging keys or logical operators."""
+    clauses = [clause for clause in filters if clause]
+    if not clauses:
+        return {}
+    return clauses[0] if len(clauses) == 1 else {"$and": clauses}
+
+
 def _oracle_card_filter(
     params: SearchParams, oracle_ids: TranslationMatches | None = None
 ) -> Document:
     attributes = _attribute_filter(params)
     query: Document = {}
+    clauses: list[Document] = [query]
     # Identity belongs to the whole card, never to the face matched by other filters.
     if params.identity_colorless is True or params.color_identity == []:
         query["color_identity"] = {"$size": 0}
@@ -102,26 +115,30 @@ def _oracle_card_filter(
                 "$all": params.color_identity, "$size": len(params.color_identity)
             }
     if params.format is not None:
-        query[f"legalities.{params.format}"] = {"$in": params.legality}
-    # Match Deck Builder's ResolvedCardResponse.isAccessory using official root data.
-    # Keep classification separate from the OR branches used for same-face matching.
+        clauses.append({"$or": [
+            {f"legalities.{format_name}": {"$in": params.legality}}
+            for format_name in params.format
+        ]})
+    # Explicit accessory searches retain the existing official root classification.
     accessory_conditions = [
         {"layout": {"$in": ["token", "double_faced_token", "emblem"]}},
         {"type_line": {"$regex": "Dungeon"}},
     ]
     if params.kind == "accessories":
-        query["$and"] = [{"$or": accessory_conditions}]
-    elif params.kind == "cards":
-        query["$nor"] = accessory_conditions
-    elif params.kind is None and not params.include_tokens:
-        query["layout"] = {"$nin": ["token", "double_faced_token"]}
+        clauses.append({"$or": accessory_conditions})
+    elif params.kind == "cards" or (params.kind is None and not params.include_tokens):
+        clauses.append({
+            "layout": {"$nin": list(NON_DECK_LAYOUTS)}, "oversized": {"$ne": True},
+        })
+        if params.kind == "cards":
+            clauses.append({"$nor": accessory_conditions})
     if "cmc" in attributes:
         query["cmc"] = attributes.pop("cmc")
     if params.lang == "en":
         text = _text_filter(params)
         if "name" in text:
             query["name"] = text.pop("name")
-        query.update(_root_or_face_filter({**attributes, **text}))
+        clauses.append(_root_or_face_filter({**attributes, **text}))
     elif oracle_ids is not None:
         branches: list[Document] = []
         grouped: dict[int | None, list[str]] = {}
@@ -131,7 +148,7 @@ def _oracle_card_filter(
         for index, ids in grouped.items():
             identity = {"oracle_id": {"$in": ids}}
             if index is None:
-                branches.append({**identity, **_root_or_face_filter(attributes)})
+                branches.append(_conjoin(identity, _root_or_face_filter(attributes)))
             else:
                 branches.append(
                     {
@@ -143,10 +160,10 @@ def _oracle_card_filter(
                         },
                     }
                 )
-        query.update({"$or": branches} if branches else {"oracle_id": {"$in": []}})
+        clauses.append({"$or": branches} if branches else {"oracle_id": {"$in": []}})
     else:
-        query.update(_root_or_face_filter(attributes))
-    return query
+        clauses.append(_root_or_face_filter(attributes))
+    return _conjoin(*clauses)
 
 
 class MongoCardRepository:

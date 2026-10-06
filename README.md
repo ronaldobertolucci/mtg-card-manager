@@ -368,7 +368,8 @@ GET /cards/search
 Os filtros são opcionais. Quando informados, são combinados com lógica `AND`.
 Sem filtros, `lang=en` abre o catálogo oficial; o padrão `lang=pt` abre somente
 as traduções válidas. Não é necessário usar `cmc_gte=0`, e cartas sem CMC informado
-continuam elegíveis. Sem `kind`, a exclusão padrão de tokens é preservada.
+continuam elegíveis. Sem `kind`, layouts não pertencentes a decks e cartas oversized
+são excluídos por padrão.
 
 ```http
 GET /cards/search?lang=en&limit=50&offset=0
@@ -383,7 +384,7 @@ GET /cards/search?lang=pt&limit=50&offset=0
 | `name` | string | — | Busca parcial por nome, sem diferenciar maiúsculas e minúsculas. |
 | `name_exact` | string | — | Busca pelo nome completo com igualdade (`=`), diferenciando maiúsculas e minúsculas. |
 | `kind` | string | — | `cards`, `accessories` ou `all`; classificação nos dados oficiais, independente do idioma. |
-| `include_tokens` | boolean | omitido: `false` | Obsoleto. Sem `kind`, `true` inclui tokens; omitido ou `false` exclui apenas `token` e `double_faced_token`. Não combine com `kind`. |
+| `include_tokens` | boolean | omitido: `false` | Obsoleto. Sem `kind`, `true` inclui componentes; omitido ou `false` aplica a limpeza física padrão. Não combine com `kind`. |
 | `oracle_text` | string | — | Busca parcial no texto Oracle. |
 | `type_line` | string | — | Busca parcial na linha de tipo. |
 | `colors` | string | — | Cores separadas por vírgula. Aceita somente `W,U,B,R,G`, sem repetição e sem depender da ordem. |
@@ -398,7 +399,7 @@ GET /cards/search?lang=pt&limit=50&offset=0
 | `cmc_lte` | número | — | Valor de mana máximo, inclusivo. |
 | `power` | string | — | Poder exato, incluindo valores não numéricos como `*`. |
 | `toughness` | string | — | Resistência exata. |
-| `format` | string | — | Formato do Scryfall; sozinho seleciona `legal,restricted`. |
+| `format` | lista de strings | — | Identificadores dinâmicos separados por vírgula ou parâmetros repetidos (OR); sozinho seleciona `legal,restricted`. |
 | `legality` | string | `legal,restricted` com formato | Status separados por vírgula; exige `format`. |
 | `limit` | inteiro | `50` | Quantidade de resultados, entre 1 e 200. |
 | `offset` | inteiro | `0` | Quantidade de cartas válidas ignoradas para paginação, entre 0 e 100.000. |
@@ -420,16 +421,19 @@ Use `kind=cards|accessories|all` para selecionar a categoria:
 
 | Valor | Seleção |
 | --- | --- |
-| `cards` | Exclui todos os acessórios segundo a regra compartilhada com o Deck Builder. |
+| `cards` | Aplica a limpeza física padrão e exclui a categoria de acessórios. |
 | `accessories` | Somente acessórios: tokens, tokens de duas faces, emblemas e tipos oficiais contendo `Dungeon`. |
 | `all` | Sem restrição por categoria; inclui cartas e acessórios. Os demais filtros continuam valendo. |
 
 A classificação usa exclusivamente os campos **principais oficiais** em `oracle_cards`:
 layout igual a `token`, `double_faced_token` ou `emblem`, ou `type_line` contendo a
-substring literal `Dungeon`, diferenciando maiúsculas de minúsculas. É a mesma regra
-do Deck Builder. O tipo traduzido e os tipos isolados das faces não alteram a categoria.
-Os demais documentos são tratados como `cards`, inclusive layouts especiais não
-abrangidos por essa regra, como `planar` e `scheme`, e documentos sem esses metadados.
+substring literal `Dungeon`, diferenciando maiúsculas de minúsculas. O tipo traduzido
+e os tipos isolados das faces não alteram a categoria.
+A limpeza física exclui `token`, `double_faced_token`, `emblem`, `art_series`,
+`planar`, `scheme` e `vanguard`, além de `oversized=true`. Layouts de
+cartas reais, incluindo `transform`, `modal_dfc`, `split` e `reversible_card`,
+continuam elegíveis. Metadados ausentes não causam exclusão. Essa regra usa os
+dados oficiais do Scryfall, sem consultar formatos ou regras de clientes.
 
 `kind` é aplicado antes da paginação e combina com os demais filtros por `AND`, sem
 alterar a correspondência na mesma face. Em português, acessórios ainda precisam de
@@ -443,15 +447,15 @@ GET /cards/search?lang=en&kind=all&name_exact=Ornithopter
 ```
 
 **Transição de `include_tokens`:** o parâmetro está marcado como obsoleto no OpenAPI.
-Sem `kind`, o comportamento existente permanece: omitido ou `false` exclui apenas
-os layouts `token` e `double_faced_token`; `true` não exclui layouts. Portanto,
-`include_tokens=false` ainda permite emblemas e dungeons e não equivale a `kind=cards`.
+Sem `kind`, omitido ou `false` aplica a limpeza física padrão; `true` não aplica
+essa limpeza. `kind=all` também permite acesso explícito aos componentes.
+`kind=cards` acrescenta a exclusão da categoria de acessórios por `type_line`.
 
 Enviar `kind` junto de `include_tokens` retorna `400`, mesmo com `include_tokens=false`
 ou com valores aparentemente equivalentes. Não há precedência silenciosa entre os
 parâmetros. Ao migrar o frontend, remova `include_tokens` e envie apenas `kind`.
 Valores de `kind` são em inglês e minúsculos; valores desconhecidos ou vazios são inválidos.
-Omitir `kind` preserva a regra legada, não assume `cards`.
+Omitir `kind` aplica a limpeza física padrão.
 
 Esse filtro não restringe a consulta individual, a consulta em lote nem a resolução
 de IDs, que continuam permitindo acesso aos acessórios solicitados.
@@ -538,32 +542,37 @@ identidade restringe a carta inteira, antes da paginação e de `hasNext`.
 
 ### Legalidade por formato
 
-Informe um formato por consulta. Sem `legality`, `format` seleciona os status
+Informe um ou mais formatos por consulta, separados por vírgula ou repetindo `format`.
+A carta corresponde se possuir um dos status selecionados em pelo menos um formato.
+Sem `legality`, `format` seleciona os status
 `legal` e `restricted`. Para distinguir os dois, informe o status explicitamente:
 
 ```http
 GET /cards/search?lang=en&format=commander
+GET /cards/search?lang=en&format=modern,pioneer
+GET /cards/search?lang=en&format=modern&format=future_format
 GET /cards/search?lang=en&format=vintage&legality=restricted
 GET /cards/search?lang=en&format=vintage&legality=legal,restricted
 GET /cards/search?lang=en&format=modern&legality=banned&colors=R
 ```
 
 - Status aceitos: `legal`, `restricted`, `not_legal`, `banned`.
-- Vários status usam `OR` (separados por vírgula); formato/status e os demais filtros usam `AND`.
-- Formatos e status aceitam maiúsculas e espaços nas extremidades; status repetidos
-  são deduplicados. Valores vazios ou desconhecidos retornam `400`.
+- Formatos e status usam `OR`; o grupo de legalidade e os demais filtros usam `AND`.
+- Formatos e status aceitam maiúsculas e espaços nas extremidades; valores repetidos
+  são deduplicados. Status desconhecidos e componentes vazios retornam `400`.
 - `legality` exige `format`. `format` também pode ser usado sozinho.
-- Formatos suportados: `standard`, `future`, `historic`, `timeless`, `gladiator`,
-  `pioneer`, `explorer`, `modern`, `legacy`, `pauper`, `vintage`, `penny`, `commander`,
-  `oathbreaker`, `standardbrawl`, `brawl`, `alchemy`, `paupercommander`, `duel`,
-  `oldschool`, `premodern`, `predh`. A lista versionada fica em `app/legalities.py`.
+- A API não mantém uma lista de formatos. Aceita identificadores de até 100 caracteres
+  com padrão `[a-z][a-z0-9_]*`, após normalização. Pontos e operadores MongoDB são
+  rejeitados. Um identificador novo pode ser consultado sem atualização do backend;
+  se estiver ausente no dataset local, simplesmente não corresponde.
 - O filtro consulta `legalities.<formato>` da carta inteira, antes da paginação,
   independentemente das faces. Campo ou formato ausente não corresponde a nenhum
   status, nem mesmo `not_legal`.
 - As respostas da busca e da consulta individual incluem o mapa completo
   `legalities`, inclusive em traduções. Cartas antigas sem o campo retornam `{}`.
 - O idioma padrão continua sendo `pt` e exige tradução cadastrada. Use `lang=en`
-  para pesquisar todo o catálogo oficial. Sem `kind`, a exclusão padrão de tokens é preservada.
+  para pesquisar todo o catálogo oficial. Sem `kind`, layouts não pertencentes a decks
+  e cartas oversized são excluídos por padrão.
 - Os status refletem a última sincronização local; a busca não consulta o Scryfall.
   Sem correspondências, a busca retorna `200` com `items: []` e `hasNext: false`.
 
@@ -583,7 +592,7 @@ curl 'http://localhost:8002/cards/search?lang=en&name_exact=Lightning%20Bolt'
 ```
 
 O nome exato pode ser compartilhado por uma carta e um token, como `Ornithopter`.
-Sem `kind`, as buscas excluem os layouts `token` e `double_faced_token` por padrão,
+Sem `kind`, as buscas aplicam a limpeza física padrão descrita acima,
 antes da paginação e em qualquer idioma. Use
 `/cards/search?lang=en&name_exact=Ornithopter&kind=cards` para buscar a carta;
 troque por `kind=all` para incluir os tokens de mesmo nome. Consultas individuais
