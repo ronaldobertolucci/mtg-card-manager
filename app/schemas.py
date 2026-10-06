@@ -84,6 +84,12 @@ class SearchParams(BaseModel):
     cmc_lte: float | None = Field(default=None, ge=0)
     power: str | None = Field(default=None, max_length=20)
     toughness: str | None = Field(default=None, max_length=20)
+    is_commander: bool | None = Field(
+        default=None,
+        description="True: legal Commander cards eligible as a standalone commander; "
+        "false: complement of that eligibility. Uses official Oracle data and the front face. "
+        "Omission does not filter commander eligibility.",
+    )
     format: list[
         Annotated[str, Field(min_length=1, max_length=100, pattern=r"^[a-z][a-z0-9_]*$")]
     ] | None = Field(

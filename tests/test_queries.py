@@ -8,6 +8,7 @@ from app.repository import (
     NON_DECK_LAYOUTS,
     MongoCardRepository,
     _attribute_filter,
+    _commander_eligibility_filter,
     _conjoin,
     _oracle_card_filter,
     _text_filter,
@@ -213,3 +214,25 @@ def test_formats_accessories_and_face_branches_are_independent(lang, matches):
             "oracle_id": {"$in": ["oracle-1"]}, "card_faces.1": {"$exists": True},
             "card_faces.1.power": "4",
         }]}
+
+
+@pytest.mark.parametrize("lang,matches", [("en", None), ("pt", {"oracle-1": [1]})])
+@pytest.mark.parametrize("flag", [True, False])
+def test_commander_filter_conjoins_without_overwriting_existing_predicates(lang, matches, flag):
+    filters = dict(
+        lang=lang, format="modern,commander", legality="banned,legal", kind="accessories",
+        colors="U", type_line="Creature", oracle_text="Flying", color_identity="U",
+    )
+    original = _oracle_card_filter(SearchParams(**filters), matches)["$and"]
+    combined = _oracle_card_filter(SearchParams(is_commander=flag, **filters), matches)["$and"]
+    eligibility = _commander_eligibility_filter()
+    assert combined == [
+        original[0], eligibility if flag else {"$nor": [eligibility]}, *original[1:],
+    ]
+    assert eligibility["$and"][0] == {"legalities.commander": "legal"}
+
+
+def test_omitting_commander_filter_preserves_existing_search():
+    assert _oracle_card_filter(SearchParams()) == _oracle_card_filter(
+        SearchParams(is_commander=None),
+    )

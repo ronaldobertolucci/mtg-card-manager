@@ -90,12 +90,39 @@ def _conjoin(*filters: Document) -> Document:
     return clauses[0] if len(clauses) == 1 else {"$and": clauses}
 
 
+def _commander_eligibility_filter() -> Document:
+    """Standalone eligibility in official data, independent of translated search faces."""
+    def eligible_face(prefix: str) -> Document:
+        return {"$or": [
+            # Match both supertype and card type before the subtype separator.
+            # Intervening types are allowed (e.g. Legendary Artifact Creature).
+            {f"{prefix}type_line": {
+                "$regex": r"^(?=[^—/\-]*\bLegendary\b)[^—/\-]*\bCreature\b",
+            }},
+            {f"{prefix}oracle_text": {"$regex": r"\bcan be your commander\b"}},
+            # Grist is a creature outside the battlefield, including deck construction.
+            # https://media.wizards.com/2021/downloads/MH2_Release_Notes/EN_MTGMH2_FAQ_06022021.pdf
+            {f"{prefix}name": "Grist, the Hunger Tide"},
+        ]}
+
+    return _conjoin(
+        {"legalities.commander": "legal"},
+        {"$or": [
+            _conjoin({"card_faces.0": {"$exists": True}}, eligible_face("card_faces.0.")),
+            _conjoin({"card_faces.0": {"$exists": False}}, eligible_face("")),
+        ]},
+    )
+
+
 def _oracle_card_filter(
     params: SearchParams, oracle_ids: TranslationMatches | None = None
 ) -> Document:
     attributes = _attribute_filter(params)
     query: Document = {}
     clauses: list[Document] = [query]
+    if params.is_commander is not None:
+        eligibility = _commander_eligibility_filter()
+        clauses.append(eligibility if params.is_commander else {"$nor": [eligibility]})
     # Identity belongs to the whole card, never to the face matched by other filters.
     if params.identity_colorless is True or params.color_identity == []:
         query["color_identity"] = {"$size": 0}

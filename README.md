@@ -401,6 +401,7 @@ GET /cards/search?lang=pt&limit=50&offset=0
 | `toughness` | string | — | Resistência exata. |
 | `format` | lista de strings | — | Identificadores dinâmicos separados por vírgula ou parâmetros repetidos (OR); sozinho seleciona `legal,restricted`. |
 | `legality` | string | `legal,restricted` com formato | Status separados por vírgula; exige `format`. |
+| `is_commander` | boolean | — | `true`: elegível como comandante independente e legal em Commander; `false`: complemento; omitido: não filtra elegibilidade. |
 | `limit` | inteiro | `50` | Quantidade de resultados, entre 1 e 200. |
 | `offset` | inteiro | `0` | Quantidade de cartas válidas ignoradas para paginação, entre 0 e 100.000. |
 
@@ -575,6 +576,34 @@ GET /cards/search?lang=en&format=modern&legality=banned&colors=R
   e cartas oversized são excluídos por padrão.
 - Os status refletem a última sincronização local; a busca não consulta o Scryfall.
   Sem correspondências, a busca retorna `200` com `items: []` e `hasNext: false`.
+
+### Busca de comandantes
+
+```http
+GET /cards/search?lang=en&is_commander=true
+GET /cards/search?lang=pt&is_commander=true&color_identity=U,R&color_identity_mode=subset
+GET /cards/search?lang=en&is_commander=true&format=modern,pioneer
+```
+
+O filtro exige `legalities.commander=legal` e uma criatura lendária (incluindo
+criaturas artefato ou encantamento), texto Oracle com permissão explícita
+`can be your commander`, ou a exceção de Grist, the Hunger Tide, que é criatura
+fora do campo de batalha conforme suas regras oficiais.
+Usa os dados oficiais em inglês, mesmo quando a busca e a resposta são traduzidas.
+Com `card_faces`, avalia somente a primeira face (`card_faces.0`), sem aceitar
+tipos ou permissões do verso nem da linha de tipo combinada. Os demais filtros
+continuam podendo corresponder ao verso conforme as regras normais de busca.
+
+`is_commander` não exige `format`. Quando ambos são informados, a elegibilidade
+é combinada com o grupo de formatos/status por `AND`; a seleção entre formatos
+continua usando `OR`. Um status `banned` em Commander nunca é aceito com
+`is_commander=true`, mesmo que outro formato corresponda. `false` seleciona o
+complemento completo, incluindo cartas banidas ou sem legalidade informada,
+respeitando os demais filtros. A omissão mantém a busca existente.
+
+Este filtro seleciona comandantes independentes; não valida pares de Partner,
+Doctor's companion ou Backgrounds que dependem de outro comandante. A legalidade
+reflete a última sincronização local, sem chamadas ao Scryfall durante a busca.
 
 ### Busca em inglês
 

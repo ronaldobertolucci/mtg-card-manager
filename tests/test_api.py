@@ -95,6 +95,33 @@ def test_search_accepts_include_tokens(card_client, value, expected):
     assert repository.search_oracle_cards.call_args.args[0].include_tokens is expected
 
 
+@pytest.mark.parametrize("value,expected", [(None, None), ("true", True), ("false", False)])
+def test_search_accepts_commander_filter(card_client, value, expected):
+    client, repository = card_client
+    repository.search_oracle_cards.return_value = []
+    query = {"lang": "en", "format": "modern,pioneer", "colors": "U"}
+    if value is not None:
+        query["is_commander"] = value
+    assert client.get("/cards/search", params=query).status_code == 200
+    params = repository.search_oracle_cards.call_args.args[0]
+    assert params.is_commander is expected
+    assert params.format == ["modern", "pioneer"]
+
+
+def test_search_rejects_invalid_commander_flag(card_client):
+    client, repository = card_client
+    assert client.get("/cards/search?is_commander=invalid").status_code == 400
+    repository.search_oracle_cards.assert_not_awaited()
+
+
+def test_commander_flag_is_documented_in_openapi(card_client):
+    client, _ = card_client
+    parameters = client.get("/openapi.json").json()["paths"]["/cards/search"]["get"]["parameters"]
+    flag = next(parameter for parameter in parameters if parameter["name"] == "is_commander")
+    assert flag["required"] is False
+    assert {"type": "boolean"} in flag["schema"]["anyOf"]
+
+
 def test_get_missing_card_returns_404(card_client) -> None:
     client, repository = card_client
     repository.get_by_oracle_id.return_value = None
