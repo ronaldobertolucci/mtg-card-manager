@@ -94,16 +94,19 @@ class SearchParams(BaseModel):
         Annotated[str, Field(min_length=1, max_length=100, pattern=r"^[a-z][a-z0-9_]*$")]
     ] | None = Field(
         default=None, min_length=1,
-        description="Dynamic format identifiers (OR), comma-separated or repeated parameters.",
+        description="Dynamic format identifiers (OR), comma-separated or repeated parameters. "
+        "Required for kind=cards; forbidden for kind=accessories.",
     )
     legality: list[Legality] | None = Field(
         default=None,
         min_length=1,
-        description="Comma-separated statuses (OR). Requires format; defaults to legal,restricted.",
+        description="Comma-separated statuses (OR). Requires format. "
+        "Required and limited to legal,restricted for kind=cards; forbidden for kind=accessories. "
+        "Without kind, defaults to legal,restricted when format is supplied.",
     )
     limit: int = Field(default=50, ge=1, le=200)
     offset: int = Field(default=0, ge=0, le=100_000)
-    kind: Literal["cards", "accessories", "all"] | None = Field(
+    kind: Literal["cards", "accessories"] | None = Field(
         default=None,
         description="Filter by official whole-card classification, independently of language. "
         "Omission excludes non-deck layouts and oversized cards. "
@@ -175,6 +178,17 @@ class SearchParams(BaseModel):
             raise ValueError("any/all require an identity color; use identity_colorless=true")
         if self.kind is not None and self.include_tokens is not None:
             raise ValueError("kind cannot be combined with include_tokens")
+        if self.kind == "cards":
+            if self.format is None:
+                raise ValueError("kind=cards requires format")
+            if self.legality is None:
+                raise ValueError("kind=cards requires legality")
+            if any(status not in (Legality.LEGAL, Legality.RESTRICTED) for status in self.legality):
+                raise ValueError("kind=cards only accepts legal or restricted legality")
+        if self.kind == "accessories" and (
+            self.format is not None or self.legality is not None
+        ):
+            raise ValueError("kind=accessories cannot be combined with format or legality")
         if self.colorless is not None and (
             self.colors is not None or self.colors_mode is not None
         ):

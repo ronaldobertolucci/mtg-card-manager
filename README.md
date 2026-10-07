@@ -383,7 +383,7 @@ GET /cards/search?lang=pt&limit=50&offset=0
 | `lang` | string | `pt` | Idioma da resposta. Use `en` para dados oficiais ou um idioma com traduções cadastradas. |
 | `name` | string | — | Busca parcial por nome, sem diferenciar maiúsculas e minúsculas. |
 | `name_exact` | string | — | Busca pelo nome completo com igualdade (`=`), diferenciando maiúsculas e minúsculas. |
-| `kind` | string | — | `cards`, `accessories` ou `all`; classificação nos dados oficiais, independente do idioma. |
+| `kind` | string | — | `cards` ou `accessories`; classificação nos dados oficiais, independente do idioma. |
 | `include_tokens` | boolean | omitido: `false` | Obsoleto. Sem `kind`, `true` inclui componentes; omitido ou `false` aplica a limpeza física padrão. Não combine com `kind`. |
 | `oracle_text` | string | — | Busca parcial no texto Oracle. |
 | `type_line` | string | — | Busca parcial na linha de tipo. |
@@ -399,8 +399,8 @@ GET /cards/search?lang=pt&limit=50&offset=0
 | `cmc_lte` | número | — | Valor de mana máximo, inclusivo. |
 | `power` | string | — | Poder exato, incluindo valores não numéricos como `*`. |
 | `toughness` | string | — | Resistência exata. |
-| `format` | lista de strings | — | Identificadores dinâmicos separados por vírgula ou parâmetros repetidos (OR); sozinho seleciona `legal,restricted`. |
-| `legality` | string | `legal,restricted` com formato | Status separados por vírgula; exige `format`. |
+| `format` | lista de strings | — | Identificadores dinâmicos separados por vírgula ou parâmetros repetidos (OR). Obrigatório com `kind=cards`; proibido com `kind=accessories`. Sem `kind`, sozinho seleciona `legal,restricted`. |
+| `legality` | string | `legal,restricted` com formato | Status separados por vírgula; exige `format`. Obrigatório e limitado a `legal,restricted` com `kind=cards`; proibido com `kind=accessories`. |
 | `is_commander` | boolean | — | `true`: elegível como comandante independente e legal em Commander; `false`: complemento; omitido: não filtra elegibilidade. |
 | `limit` | inteiro | `50` | Quantidade de resultados, entre 1 e 200. |
 | `offset` | inteiro | `0` | Quantidade de cartas válidas ignoradas para paginação, entre 0 e 100.000. |
@@ -418,13 +418,12 @@ Regras importantes:
 
 ### Cartas e acessórios
 
-Use `kind=cards|accessories|all` para selecionar a categoria:
+Use `kind=cards|accessories` para selecionar a categoria:
 
 | Valor | Seleção |
 | --- | --- |
-| `cards` | Aplica a limpeza física padrão e exclui a categoria de acessórios. |
+| `cards` | Exige `format` e `legality=legal,restricted` (ou um desses status). Aplica a limpeza física padrão e exclui acessórios. |
 | `accessories` | Somente acessórios: tokens, tokens de duas faces, emblemas e tipos oficiais contendo `Dungeon`. |
-| `all` | Sem restrição por categoria; inclui cartas e acessórios. Os demais filtros continuam valendo. |
 
 A classificação usa exclusivamente os campos **principais oficiais** em `oracle_cards`:
 layout igual a `token`, `double_faced_token` ou `emblem`, ou `type_line` contendo a
@@ -441,15 +440,14 @@ alterar a correspondência na mesma face. Em português, acessórios ainda preci
 tradução válida para aparecer na busca; não há fallback automático.
 
 ```http
-GET /cards/search?lang=en&kind=cards
+GET /cards/search?lang=en&kind=cards&format=commander,standard,modern,pioneer,pauper&legality=legal,restricted
 GET /cards/search?lang=en&kind=accessories
 GET /cards/search?lang=pt&kind=accessories
-GET /cards/search?lang=en&kind=all&name_exact=Ornithopter
 ```
 
 **Transição de `include_tokens`:** o parâmetro está marcado como obsoleto no OpenAPI.
 Sem `kind`, omitido ou `false` aplica a limpeza física padrão; `true` não aplica
-essa limpeza. `kind=all` também permite acesso explícito aos componentes.
+essa limpeza.
 `kind=cards` acrescenta a exclusão da categoria de acessórios por `type_line`.
 
 Enviar `kind` junto de `include_tokens` retorna `400`, mesmo com `include_tokens=false`
@@ -457,6 +455,12 @@ ou com valores aparentemente equivalentes. Não há precedência silenciosa entr
 parâmetros. Ao migrar o frontend, remova `include_tokens` e envie apenas `kind`.
 Valores de `kind` são em inglês e minúsculos; valores desconhecidos ou vazios são inválidos.
 Omitir `kind` aplica a limpeza física padrão.
+`kind=all` retorna `400`. `kind=cards` exige os dois parâmetros `format` e `legality`,
+e aceita somente `legal` e `restricted`: basta corresponder em um dos formatos enviados.
+`kind=accessories` rejeita `format` e `legality` com `400`; os acessórios são retornados
+independentemente de sua legalidade armazenada. Esses erros usam a resposta estruturada
+`detail` com `loc`, `msg` e `type`. Campos de legalidade ausentes não correspondem
+a nenhum status, inclusive `not_legal`.
 
 Esse filtro não restringe a consulta individual, a consulta em lote nem a resolução
 de IDs, que continuam permitindo acesso aos acessórios solicitados.
@@ -525,7 +529,7 @@ legalidade e `kind=cards` para excluir acessórios. A API não calcula essa uni�
 substitui as demais validações de construção do Deck Builder.
 
 ```http
-GET /cards/search?lang=en&kind=cards&format=commander&color_identity=U,R&color_identity_mode=subset
+GET /cards/search?lang=en&kind=cards&format=commander&legality=legal,restricted&color_identity=U,R&color_identity_mode=subset
 GET /cards/search?lang=pt&identity_colorless=true
 GET /cards/search?lang=en&colorless=true&color_identity=U,R&color_identity_mode=exact
 ```
@@ -545,7 +549,7 @@ identidade restringe a carta inteira, antes da paginação e de `hasNext`.
 
 Informe um ou mais formatos por consulta, separados por vírgula ou repetindo `format`.
 A carta corresponde se possuir um dos status selecionados em pelo menos um formato.
-Sem `legality`, `format` seleciona os status
+Sem `kind` e sem `legality`, `format` seleciona os status
 `legal` e `restricted`. Para distinguir os dois, informe o status explicitamente:
 
 ```http
@@ -561,7 +565,8 @@ GET /cards/search?lang=en&format=modern&legality=banned&colors=R
 - Formatos e status usam `OR`; o grupo de legalidade e os demais filtros usam `AND`.
 - Formatos e status aceitam maiúsculas e espaços nas extremidades; valores repetidos
   são deduplicados. Status desconhecidos e componentes vazios retornam `400`.
-- `legality` exige `format`. `format` também pode ser usado sozinho.
+- `legality` exige `format`. Sem `kind`, `format` também pode ser usado sozinho.
+  Com `kind=cards`, ambos são obrigatórios; com `kind=accessories`, ambos são proibidos.
 - A API não mantém uma lista de formatos. Aceita identificadores de até 100 caracteres
   com padrão `[a-z][a-z0-9_]*`, após normalização. Pontos e operadores MongoDB são
   rejeitados. Um identificador novo pode ser consultado sem atualização do backend;
@@ -623,8 +628,9 @@ curl 'http://localhost:8002/cards/search?lang=en&name_exact=Lightning%20Bolt'
 O nome exato pode ser compartilhado por uma carta e um token, como `Ornithopter`.
 Sem `kind`, as buscas aplicam a limpeza física padrão descrita acima,
 antes da paginação e em qualquer idioma. Use
-`/cards/search?lang=en&name_exact=Ornithopter&kind=cards` para buscar a carta;
-troque por `kind=all` para incluir os tokens de mesmo nome. Consultas individuais
+`/cards/search?lang=en&name_exact=Ornithopter&kind=cards&format=commander&legality=legal,restricted`
+para buscar a carta; use `kind=accessories` sem `format` e `legality` para buscar os
+tokens de mesmo nome. Consultas individuais
 e em lote por `oracle_id` continuam permitindo acesso aos tokens.
 
 Se `name` e `name_exact` forem informados juntos, ambos devem corresponder (`AND`).

@@ -191,17 +191,13 @@ def test_unsafe_or_empty_formats_are_rejected(value):
 
 
 @pytest.mark.parametrize("lang,matches", [("en", None), ("pt", {"oracle-1": [1]})])
-def test_formats_accessories_and_face_branches_are_independent(lang, matches):
+def test_accessories_have_no_format_filter_and_preserve_face_branches(lang, matches):
     query = _oracle_card_filter(SearchParams(
-        lang=lang, format="modern,future_format", kind="accessories",
+        lang=lang, kind="accessories",
         oracle_text="Flying", power="4", cmc=3, color_identity="U",
     ), matches)
-    root, formats, accessories, faces = query["$and"]
+    root, accessories, faces = query["$and"]
     assert root == {"cmc": 3, "color_identity": {"$all": ["U"], "$size": 1}}
-    assert formats == {"$or": [
-        {"legalities.modern": {"$in": ["legal", "restricted"]}},
-        {"legalities.future_format": {"$in": ["legal", "restricted"]}},
-    ]}
     assert accessories == {"$or": [
         {"layout": {"$in": ["token", "double_faced_token", "emblem"]}},
         {"type_line": {"$regex": "Dungeon"}},
@@ -220,7 +216,7 @@ def test_formats_accessories_and_face_branches_are_independent(lang, matches):
 @pytest.mark.parametrize("flag", [True, False])
 def test_commander_filter_conjoins_without_overwriting_existing_predicates(lang, matches, flag):
     filters = dict(
-        lang=lang, format="modern,commander", legality="banned,legal", kind="accessories",
+        lang=lang, format="modern,commander", legality="restricted,legal", kind="cards",
         colors="U", type_line="Creature", oracle_text="Flying", color_identity="U",
     )
     original = _oracle_card_filter(SearchParams(**filters), matches)["$and"]

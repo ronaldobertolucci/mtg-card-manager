@@ -515,8 +515,8 @@ def test_kind_and_legacy_parameter_conflict_before_io(card_client, kind, include
     repository.search_translation_matches.assert_not_awaited()
 
 
-@pytest.mark.parametrize("kind", ["cards", "accessories", "all"])
-def test_kind_without_other_filters_is_accepted(card_client, kind):
+def test_accessories_without_other_filters_is_accepted(card_client):
+    kind = "accessories"
     client, repository = card_client
     repository.search_oracle_cards.return_value = []
     response = client.get("/cards/search", params={"lang": "en", "kind": kind})
@@ -526,7 +526,7 @@ def test_kind_without_other_filters_is_accepted(card_client, kind):
     assert query.include_tokens is None
 
 
-@pytest.mark.parametrize("kind", ["", "tokens", "cartas", "CARDS"])
+@pytest.mark.parametrize("kind", ["", "tokens", "cartas", "CARDS", "all"])
 def test_unknown_kind_is_rejected(card_client, kind):
     client, repository = card_client
     assert client.get("/cards/search", params={"kind": kind}).status_code == 400
@@ -537,7 +537,7 @@ def test_kind_and_deprecated_include_tokens_in_openapi(card_client):
     client, _ = card_client
     parameters = client.get("/openapi.json").json()["paths"]["/cards/search"]["get"]["parameters"]
     fields = {param["name"]: param for param in parameters}
-    assert fields["kind"]["schema"]["anyOf"][0]["enum"] == ["cards", "accessories", "all"]
+    assert fields["kind"]["schema"]["anyOf"][0]["enum"] == ["cards", "accessories"]
     assert not fields["kind"]["required"]
     assert fields["include_tokens"]["schema"]["deprecated"] is True
     assert fields["include_tokens"]["deprecated"] is True
@@ -589,3 +589,41 @@ def test_identity_openapi_contract(card_client):
         "any", "all", "exact", "subset",
     ]
     assert fields["identity_colorless"]["schema"]["anyOf"][0]["type"] == "boolean"
+
+
+@pytest.mark.parametrize("query", [
+    {"kind": "cards"},
+    {"kind": "cards", "legality": "legal,restricted"},
+    {"kind": "cards", "format": "modern"},
+    {"kind": "cards", "format": "modern", "legality": "banned"},
+    {"kind": "cards", "format": "modern", "legality": "legal,not_legal"},
+    {"kind": "accessories", "format": "modern"},
+    {"kind": "accessories", "legality": "legal"},
+    {"kind": "accessories", "format": "commander", "legality": "legal,restricted"},
+    {"kind": "all"},
+])
+def test_kind_invalid_combinations_return_structured_400_before_io(card_client, query):
+    client, repository = card_client
+    response = client.get("/cards/search", params=query)
+    assert response.status_code == 400
+    errors = response.json()["detail"]
+    assert errors and all({"loc", "msg", "type"} <= error.keys() for error in errors)
+    repository.search_oracle_cards.assert_not_awaited()
+    repository.search_translation_matches.assert_not_awaited()
+
+
+@pytest.mark.parametrize("formats", [
+    "commander,standard,modern,pioneer,pauper",
+    "commander", "standard", "modern", "pioneer", "pauper",
+])
+def test_cards_kind_accepts_explicit_formats_and_playable_statuses(card_client, formats):
+    client, repository = card_client
+    repository.search_oracle_cards.return_value = []
+    response = client.get("/cards/search", params={
+        "lang": "en", "kind": "cards", "format": formats, "legality": "legal,restricted",
+    })
+    assert response.status_code == 200
+    params = repository.search_oracle_cards.call_args.args[0]
+    assert params.kind == "cards"
+    assert params.format == formats.split(",")
+    assert params.legality == ["legal", "restricted"]
