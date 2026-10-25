@@ -15,6 +15,14 @@ NON_DECK_LAYOUTS = (
 )
 
 
+def accessory_predicates() -> list[Document]:
+    """Official root accessory classification, independent of playability."""
+    return [
+        {"layout": {"$in": ["token", "double_faced_token", "emblem"]}},
+        {"type_line": {"$regex": "Dungeon"}},
+    ]
+
+
 class CardRepository(Protocol):
     async def get_by_ids(self, ids: Sequence[str]) -> list[Document]: ...
 
@@ -147,10 +155,7 @@ def _oracle_card_filter(
             for format_name in params.format
         ]})
     # Explicit accessory searches retain the existing official root classification.
-    accessory_conditions = [
-        {"layout": {"$in": ["token", "double_faced_token", "emblem"]}},
-        {"type_line": {"$regex": "Dungeon"}},
-    ]
+    accessory_conditions = accessory_predicates()
     if params.kind == "accessories":
         clauses.append({"$or": accessory_conditions})
     elif params.kind == "cards" or (params.kind is None and not params.include_tokens):

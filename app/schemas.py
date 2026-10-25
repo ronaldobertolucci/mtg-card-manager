@@ -363,3 +363,15 @@ class ErrorResponse(BaseModel):
 
 class TranslationValidationErrorResponse(BaseModel):
     detail: str | list[ValidationIssue]
+
+
+class TranslationCardItem(CardContract):
+    card: CardResponse
+    translation_id: str | None = Field(description="Existing translation record ID, or null.")
+
+
+class TranslationCardsPage(CardContract):
+    items: list[TranslationCardItem]
+    limit: int
+    offset: int
+    has_next: bool = Field(serialization_alias="hasNext")

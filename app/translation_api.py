@@ -3,10 +3,16 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response, status
 
 from app.database import get_database
-from app.schemas import ErrorResponse, TranslationValidationErrorResponse, ValidationErrorResponse
+from app.schemas import (
+    ErrorResponse,
+    TranslationCardsPage,
+    TranslationValidationErrorResponse,
+    ValidationErrorResponse,
+)
 from app.translation_repository import MongoTranslationRepository
 from app.translation_schemas import (
     LANGUAGE_PATTERN,
+    TranslationCardsParams,
     TranslationCreate,
     TranslationListParams,
     TranslationResponse,
@@ -78,6 +84,23 @@ async def list_translations(
     service: Annotated[TranslationService, Depends(get_translation_service)],
 ) -> list[TranslationResponse]:
     return await service.list(query)
+
+
+@router.get(
+    "/cards", response_model=TranslationCardsPage,
+    summary="List original local cards by translation existence",
+    description="Combines category, literal original-name search and translation existence before "
+    "pagination. Returns English CardResponse objects without legality restrictions. "
+    "Presence means "
+    "a record exists for the requested language, regardless of its usability. Sorts by original "
+    "name then oracle_id using binary comparison. Local read only.",
+    responses={422: {"model": ValidationErrorResponse, "description": "Invalid query parameters."}},
+)
+async def list_translation_cards(
+    query: Annotated[TranslationCardsParams, Query()],
+    service: Annotated[TranslationService, Depends(get_translation_service)],
+) -> TranslationCardsPage:
+    return await service.list_cards(query)
 
 
 @router.get(

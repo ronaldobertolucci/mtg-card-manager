@@ -1,3 +1,4 @@
+import re
 from collections.abc import Mapping
 from typing import Any, Protocol
 
@@ -5,10 +6,15 @@ from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pymongo import ReturnDocument
 
+from app.repository import accessory_predicates
+from app.translation_schemas import TranslationCardsParams
+
 TranslationDocument = dict[str, Any]
 
 
 class TranslationRepository(Protocol):
+    async def list_cards(self, params: TranslationCardsParams) -> list[TranslationDocument]: ...
+
     async def get_oracle_card(self, oracle_id: str) -> TranslationDocument | None: ...
 
     async def create(self, document: TranslationDocument) -> TranslationDocument: ...
@@ -34,6 +40,40 @@ class MongoTranslationRepository:
     def __init__(self, database: AsyncIOMotorDatabase) -> None:
         self._oracle_cards = database.oracle_cards
         self._translations = database.translations
+
+    async def list_cards(self, params: TranslationCardsParams) -> list[TranslationDocument]:
+        filters: TranslationDocument = {
+            "$or" if params.kind == "accessories" else "$nor": accessory_predicates(),
+        }
+        if params.name is not None:
+            filters["name"] = {"$regex": re.escape(params.name), "$options": "i"}
+        pipeline: list[TranslationDocument] = [
+            {"$match": filters},
+            {"$lookup": {
+                "from": self._translations.name,
+                "let": {"oracle_id": "$oracle_id"},
+                "pipeline": [
+                    {"$match": {"$expr": {"$and": [
+                        {"$eq": ["$oracle_id", "$$oracle_id"]},
+                        {"$eq": ["$lang", params.lang]},
+                    ]}}},
+                    {"$project": {"_id": 1}},
+                ],
+                "as": "_translation_records",
+            }},
+        ]
+        if params.translation_status != "all":
+            pipeline.append({"$match": {
+                "_translation_records.0": {"$exists": params.translation_status == "present"},
+            }})
+        pipeline.extend([
+            {"$sort": {"name": 1, "oracle_id": 1}},
+            {"$skip": params.offset},
+            {"$limit": params.limit + 1},
+        ])
+        # The unique oracle_id index ensures one item per card, without unwinding faces.
+        cursor = self._oracle_cards.aggregate(pipeline, collation={"locale": "simple"})
+        return [document async for document in cursor]
 
     async def get_oracle_card(self, oracle_id: str) -> TranslationDocument | None:
         return await self._oracle_cards.find_one({"oracle_id": oracle_id}, {"card_faces": 1})

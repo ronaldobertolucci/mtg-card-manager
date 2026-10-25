@@ -4,8 +4,11 @@ from bson import ObjectId
 from bson.errors import InvalidId
 from pymongo.errors import DuplicateKeyError
 
+from app.schemas import TranslationCardItem, TranslationCardsPage
+from app.service import serialize_card
 from app.translation_repository import TranslationDocument, TranslationRepository
 from app.translation_schemas import (
+    TranslationCardsParams,
     TranslationCreate,
     TranslationListParams,
     TranslationResponse,
@@ -37,6 +40,19 @@ class InvalidTranslationStructureError(ValueError):
 class TranslationService:
     def __init__(self, repository: TranslationRepository) -> None:
         self._repository = repository
+
+    async def list_cards(self, params: TranslationCardsParams) -> TranslationCardsPage:
+        documents = await self._repository.list_cards(params)
+        return TranslationCardsPage(
+            items=[TranslationCardItem(
+                card=serialize_card(document, "en"),
+                translation_id=(str(document["_translation_records"][0]["_id"])
+                                if document["_translation_records"] else None),
+            ) for document in documents[:params.limit]],
+            limit=params.limit,
+            offset=params.offset,
+            has_next=len(documents) > params.limit,
+        )
 
     async def create(self, payload: TranslationCreate) -> TranslationResponse:
         fields = await self._validate_structure(payload.model_dump(exclude_unset=True))

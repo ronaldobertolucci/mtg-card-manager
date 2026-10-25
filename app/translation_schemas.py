@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -88,3 +89,19 @@ class TranslationResponse(BaseModel):
     card_faces: list[TranslationFace] | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
+
+
+class TranslationCardsParams(BaseModel):
+    lang: str = Field(min_length=2, max_length=16, pattern=LANGUAGE_PATTERN)
+    kind: Literal["cards", "accessories"]
+    translation_status: Literal["all", "missing", "present"] = "all"
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    limit: int = Field(default=50, ge=1, le=200)
+    offset: int = Field(default=0, ge=0, le=100_000)
+
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    @field_validator("lang")
+    @classmethod
+    def canonicalize_language(cls, value: str) -> str:
+        return TranslationCreate.canonicalize_language(value)

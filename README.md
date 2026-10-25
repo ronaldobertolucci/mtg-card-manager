@@ -866,6 +866,69 @@ curl 'http://localhost:8002/translations?lang=pt&limit=50&offset=0'
 
 Uma consulta sem resultados retorna `200 OK` com `[]`.
 
+### Consultar cartas para gerenciamento de traduções
+
+```http
+GET /translations/cards?lang=pt&kind=cards&translation_status=missing&limit=24&offset=0
+```
+
+Consulta somente o catálogo local, sem escrita, Scryfall, tradução automática ou
+restrições de formato/legalidade. Não requer autenticação. A rota estática é registrada
+antes de `/translations/{translation_id}`; `GET /translations` e o CRUD permanecem iguais.
+
+| Parâmetro | Regra |
+|---|---|
+| `lang` | Obrigatório; mesmo formato/normalização de `TranslationCreate` (ex.: `PT` → `pt`, `pt-br` → `pt-BR`); rejeita `en`. |
+| `kind` | Obrigatório: `cards` ou `accessories`. |
+| `translation_status` | `all` (padrão), `missing` ou `present`. |
+| `name` | Opcional; substring literal do nome original principal, sem distinguir maiúsculas; espaços externos removidos; 1–200 caracteres. Vazio explícito é inválido. |
+| `limit` | Inteiro de 1 a 200; padrão 50. |
+| `offset` | Inteiro de 0 a 100000; padrão 0. |
+
+Parâmetros desconhecidos, obrigatórios ausentes e valores inválidos retornam **422**
+no envelope `detail`, com localização `query` e nome do parâmetro. Não aceita `format`,
+`legality`, `include_tokens`, `fallbackLang`, filtros mecânicos ou ordenação configurável.
+Falhas de acesso ao banco propagam erro HTTP, nunca uma página vazia bem-sucedida.
+
+Acessórios usam a classificação oficial existente: layouts `token`, `double_faced_token`,
+`emblem` ou `type_line` principal contendo `Dungeon` (com essa capitalização).
+Nesta consulta, `cards` é o complemento exato: inclui planar, scheme, oversized,
+cartas banidas e cartas sem legalidades. As regras de `/cards/search` não mudam.
+
+Filtros combinam com AND **antes** de offset/limit. A associação usa `oracle_id` e o
+idioma normalizado, em uma agregação MongoDB, sem consultas individuais por carta.
+`present` significa exclusivamente que o registro existe, mesmo que seus textos ou
+faces sejam inutilizáveis pela leitura pública. Traduções em outros idiomas não contam;
+traduções órfãs não geram itens. Não há diagnóstico de validade ou conteúdo traduzido.
+
+Resposta: `items`, `limit`, `offset`, `hasNext`. Cada item tem exatamente `card`
+(`CardResponse` completo, com `lang="en"`, sem sobreposição de tradução) e
+`translation_id` (ID do registro ou `null`, sempre presente). `printing_lang` preserva
+sua semântica atual. Faces mantêm ordem e imagens originais, sem gerar itens separados;
+cartas sem imagem continuam incluídas. Há uma entrada por `oracle_id`.
+
+Ordenação ascendente por nome original e depois `oracle_id`, com comparação binária
+simples, independente do idioma. `hasNext` é calculado consultando um item adicional
+após todos os filtros; página cheia pode ter `hasNext=false`. Não retorna total.
+Nenhum resultado ou offset após o fim retorna **200**, por exemplo:
+
+```json
+{"items": [], "limit": 24, "offset": 0, "hasNext": false}
+```
+
+Exemplo de consulta de traduções existentes, incluindo busca literal por colchetes:
+
+```bash
+curl --get 'http://localhost:8002/translations/cards' \
+  --data-urlencode 'lang=pt' --data-urlencode 'kind=cards' \
+  --data-urlencode 'translation_status=present' --data-urlencode 'name=[x]'
+```
+
+Criação/exclusão pelo CRUD se reflete na próxima consulta; atualização mantém o ID e
+presença. Paginação por offset não garante snapshot entre chamadas: após escrita,
+reconsultar a página e voltar à anterior se necessário. `hasNext` não autoriza ultrapassar
+o offset máximo. O esquema completo, inclusive `CardResponse`, está em `/openapi.json`.
+
 ### Consultar tradução por ID
 
 ```http

@@ -179,8 +179,13 @@ class CardSearchService:
 
     @staticmethod
     def _serialize(card: Document, lang: str) -> CardResponse:
-        payload = dict(card)
-        payload.pop("_id", None)
-        payload["printing_lang"] = card.get("lang")
-        payload["lang"] = lang
-        return CardResponse.model_validate(payload)
+        return serialize_card(card, lang)
+
+
+def serialize_card(card: Document, lang: str) -> CardResponse:
+    """Serialize original or merged text with the representative printing metadata."""
+    payload = dict(card)
+    payload.pop("_id", None)
+    payload["printing_lang"] = card.get("lang")
+    payload["lang"] = lang
+    return CardResponse.model_validate(payload)
