@@ -7,6 +7,15 @@ from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from app.config import get_settings
 
 
+async def ensure_translation_cards_index(database: AsyncIOMotorDatabase) -> None:
+    # Match the endpoint's explicit binary collation even on non-simple databases.
+    await database.oracle_cards.create_index(
+        [("name", 1), ("oracle_id", 1)],
+        name="ix_oracle_cards_name_oracle_id",
+        collation={"locale": "simple"},
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
@@ -18,6 +27,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         unique=True,
         name="uq_oracle_cards_oracle_id",
     )
+    await ensure_translation_cards_index(database)
     await database.translations.create_index(
         [("oracle_id", 1), ("lang", 1)],
         unique=True,

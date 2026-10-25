@@ -36,41 +36,53 @@ class TranslationRepository(Protocol):
     async def delete(self, translation_id: ObjectId) -> bool: ...
 
 
+def translation_cards_pipeline(
+    params: TranslationCardsParams, translations_collection: str = "translations",
+) -> list[TranslationDocument]:
+    """Stream in binary name/identity order, filtering existence before pagination."""
+    filters: TranslationDocument = {
+        "$or" if params.kind == "accessories" else "$nor": accessory_predicates(),
+    }
+    if params.name is not None:
+        filters["name"] = {"$regex": re.escape(params.name), "$options": "i"}
+    pipeline: list[TranslationDocument] = [
+        {"$match": filters},
+        {"$sort": {"name": 1, "oracle_id": 1}},
+    ]
+    pagination: list[TranslationDocument] = [
+        {"$skip": params.offset}, {"$limit": params.limit + 1},
+    ]
+    # Without an existence filter, only the requested page needs the join.
+    if params.translation_status == "all":
+        pipeline.extend(pagination)
+    pipeline.append({"$lookup": {
+        "from": translations_collection,
+        "let": {"oracle_id": "$oracle_id"},
+        "pipeline": [
+            {"$match": {"$expr": {"$and": [
+                {"$eq": ["$oracle_id", "$$oracle_id"]},
+                {"$eq": ["$lang", params.lang]},
+            ]}}},
+            {"$project": {"_id": 1}},
+        ],
+        "as": "_translation_records",
+    }})
+    if params.translation_status != "all":
+        pipeline.append({"$match": {
+            "_translation_records.0": {"$exists": params.translation_status == "present"},
+        }})
+        # Existence must be evaluated BEFORE skip/limit, even for empty pages.
+        pipeline.extend(pagination)
+    return pipeline
+
+
 class MongoTranslationRepository:
     def __init__(self, database: AsyncIOMotorDatabase) -> None:
         self._oracle_cards = database.oracle_cards
         self._translations = database.translations
 
     async def list_cards(self, params: TranslationCardsParams) -> list[TranslationDocument]:
-        filters: TranslationDocument = {
-            "$or" if params.kind == "accessories" else "$nor": accessory_predicates(),
-        }
-        if params.name is not None:
-            filters["name"] = {"$regex": re.escape(params.name), "$options": "i"}
-        pipeline: list[TranslationDocument] = [
-            {"$match": filters},
-            {"$lookup": {
-                "from": self._translations.name,
-                "let": {"oracle_id": "$oracle_id"},
-                "pipeline": [
-                    {"$match": {"$expr": {"$and": [
-                        {"$eq": ["$oracle_id", "$$oracle_id"]},
-                        {"$eq": ["$lang", params.lang]},
-                    ]}}},
-                    {"$project": {"_id": 1}},
-                ],
-                "as": "_translation_records",
-            }},
-        ]
-        if params.translation_status != "all":
-            pipeline.append({"$match": {
-                "_translation_records.0": {"$exists": params.translation_status == "present"},
-            }})
-        pipeline.extend([
-            {"$sort": {"name": 1, "oracle_id": 1}},
-            {"$skip": params.offset},
-            {"$limit": params.limit + 1},
-        ])
+        pipeline = translation_cards_pipeline(params, self._translations.name)
         # The unique oracle_id index ensures one item per card, without unwinding faces.
         cursor = self._oracle_cards.aggregate(pipeline, collation={"locale": "simple"})
         return [document async for document in cursor]
