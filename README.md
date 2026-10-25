@@ -872,8 +872,8 @@ Uma consulta sem resultados retorna `200 OK` com `[]`.
 GET /translations/cards?lang=pt&kind=cards&translation_status=missing&limit=24&offset=0
 ```
 
-Consulta somente o catálogo local, sem escrita, Scryfall, tradução automática ou
-restrições de formato/legalidade. Não requer autenticação. A rota estática é registrada
+Consulta somente o catálogo local, sem escrita, Scryfall ou tradução automática.
+Sem os filtros opcionais de formato/legalidade, preserva a abrangência anterior. Não requer autenticação. A rota estática é registrada
 antes de `/translations/{translation_id}`; `GET /translations` e o CRUD permanecem iguais.
 
 | Parâmetro | Regra |
@@ -881,21 +881,41 @@ antes de `/translations/{translation_id}`; `GET /translations` e o CRUD permanec
 | `lang` | Obrigatório; mesmo formato/normalização de `TranslationCreate` (ex.: `PT` → `pt`, `pt-br` → `pt-BR`); rejeita `en`. |
 | `kind` | Obrigatório: `cards` ou `accessories`. |
 | `translation_status` | `all` (padrão), `missing` ou `present`. |
+| `format` | Opcional; identificadores dinâmicos separados por vírgulas ou parâmetros repetidos (OR). Remove espaços, converte para minúsculas e deduplica; 1–100 caracteres por identificador, padrão `[a-z][a-z0-9_]*`. Proibido em acessórios. |
+| `legality` | Opcional; `legal`, `restricted`, `banned`, `not_legal`, separados por vírgulas ou parâmetros repetidos (OR), com a mesma normalização. Exige `format`; padrão com formato: `legal,restricted`. Proibido em acessórios. |
 | `name` | Opcional; substring literal do nome original principal, sem distinguir maiúsculas; espaços externos removidos; 1–200 caracteres. Vazio explícito é inválido. |
 | `limit` | Inteiro de 1 a 200; padrão 50. |
 | `offset` | Inteiro de 0 a 100000; padrão 0. |
 
 Parâmetros desconhecidos, obrigatórios ausentes e valores inválidos retornam **422**
-no envelope `detail`, com localização `query` e nome do parâmetro. Não aceita `format`,
-`legality`, `include_tokens`, `fallbackLang`, filtros mecânicos ou ordenação configurável.
+no envelope `detail`, com localização `query` e nome do parâmetro (e posição na lista
+quando aplicável). Componentes vazios, inclusive vírgulas finais, são inválidos.
+Não aceita `include_tokens`, `fallbackLang`, filtros mecânicos ou ordenação configurável.
 Falhas de acesso ao banco propagam erro HTTP, nunca uma página vazia bem-sucedida.
 
 Acessórios usam a classificação oficial existente: layouts `token`, `double_faced_token`,
 `emblem` ou `type_line` principal contendo `Dungeon` (com essa capitalização).
 Nesta consulta, `cards` é o complemento exato: inclui planar, scheme, oversized,
-cartas banidas e cartas sem legalidades. As regras de `/cards/search` não mudam.
+cartas banidas e cartas sem legalidades quando os novos filtros são omitidos.
+As regras de `/cards/search` não mudam.
 
-Filtros combinam com AND **antes** de offset/limit. A associação usa `oracle_id` e o
+Com `format`, a carta deve possuir um dos status selecionados em pelo menos um formato
+solicitado. Campo ausente não corresponde a `not_legal`. Não há lista fixa de formatos
+no backend; identificadores válidos desconhecidos simplesmente não encontram cartas.
+Esta rota mantém formato opcional e aceita os quatro status, sem importar a exigência
+de formato/legality explícitos de `kind=cards` da busca pública.
+
+```http
+GET /translations/cards?lang=pt&kind=cards&translation_status=missing&format=standard,modern,pioneer,legacy,commander&legality=legal,restricted&limit=24&offset=0
+GET /translations/cards?lang=pt&kind=cards&format=vintage
+GET /translations/cards?lang=pt&kind=cards&format=modern&legality=banned
+GET /translations/cards?lang=pt&kind=accessories&translation_status=missing
+```
+
+`format=vintage` usa `legal,restricted`. `legality=legal` sem formato e qualquer um
+dos novos filtros em acessórios retornam 422.
+
+Nome, categoria, formato/legalidade e existência combinam com AND **antes** de offset/limit. A associação usa `oracle_id` e o
 idioma normalizado, em uma agregação MongoDB, sem consultas individuais por carta.
 `present` significa exclusivamente que o registro existe, mesmo que seus textos ou
 faces sejam inutilizáveis pela leitura pública. Traduções em outros idiomas não contam;
@@ -928,6 +948,12 @@ Criação/exclusão pelo CRUD se reflete na próxima consulta; atualização man
 presença. Paginação por offset não garante snapshot entre chamadas: após escrita,
 reconsultar a página e voltar à anterior se necessário. `hasNext` não autoriza ultrapassar
 o offset máximo. O esquema completo, inclusive `CardResponse`, está em `/openapi.json`.
+
+A consulta preserva a ordenação indexada e o join tardio de `translation_status=all`;
+`missing`/`present` verificam existência antes da paginação. Não usa cache.
+O índice binário `ix_oracle_cards_name_oracle_id` e os índices únicos de `oracle_id`
+e `(oracle_id, lang)` já são criados no startup. Nenhuma migração ou índice novo é
+necessário para os filtros. Evidências reproduzíveis: [desempenho](docs/translation-cards-format-performance.md).
 
 ### Consultar tradução por ID
 

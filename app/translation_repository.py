@@ -6,6 +6,7 @@ from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pymongo import ReturnDocument
 
+from app.legalities import legality_predicate
 from app.repository import accessory_predicates
 from app.translation_schemas import TranslationCardsParams
 
@@ -45,6 +46,8 @@ def translation_cards_pipeline(
     }
     if params.name is not None:
         filters["name"] = {"$regex": re.escape(params.name), "$options": "i"}
+    if params.format is not None:
+        filters.update(legality_predicate(params.format, params.legality))
     pipeline: list[TranslationDocument] = [
         {"$match": filters},
         {"$sort": {"name": 1, "oracle_id": 1}},

@@ -4,6 +4,7 @@ from typing import Any, Protocol
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from app.legalities import legality_predicate
 from app.schemas import SearchParams
 
 Document = dict[str, Any]
@@ -150,10 +151,7 @@ def _oracle_card_filter(
                 "$all": params.color_identity, "$size": len(params.color_identity)
             }
     if params.format is not None:
-        clauses.append({"$or": [
-            {f"legalities.{format_name}": {"$in": params.legality}}
-            for format_name in params.format
-        ]})
+        clauses.append(legality_predicate(params.format, params.legality))
     # Explicit accessory searches retain the existing official root classification.
     accessory_conditions = accessory_predicates()
     if params.kind == "accessories":

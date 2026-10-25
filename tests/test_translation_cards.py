@@ -39,8 +39,17 @@ async def api():
     ({"name": "  "}, "name"), ({"name": "x" * 201}, "name"),
     ({"limit": 0}, "limit"), ({"limit": 201}, "limit"), ({"limit": "x"}, "limit"),
     ({"offset": -1}, "offset"), ({"offset": 100001}, "offset"),
+    ({"format": ""}, "format"), ({"format": "modern,"}, "format"),
+    ({"format": "a" * 101}, "format"), ({"format": "$bad"}, "format"),
+    ({"format": "legalities.modern"}, "format"),
+    ({"legality": "legal"}, "legality"),
+    ({"format": "modern", "legality": ""}, "legality"),
+    ({"format": "modern", "legality": "legal,"}, "legality"),
+    ({"format": "modern", "legality": "invalid"}, "legality"),
+    ({"kind": "accessories", "format": "modern"}, "format"),
+    ({"kind": "accessories", "legality": "legal"}, "legality"),
     *[({key: "value"}, key) for key in
-      ("format", "legality", "include_tokens", "fallbackLang", "unknown")],
+      ("include_tokens", "fallbackLang", "unknown")],
 ])
 async def test_validation(api, changes, field):
     client, repository = api
@@ -48,7 +57,7 @@ async def test_validation(api, changes, field):
     params = {k: v for k, v in params.items() if v is not None}
     response = await client.get("/translations/cards", params=params)
     assert response.status_code == 422
-    assert ["query", field] in [issue["loc"] for issue in response.json()["detail"]]
+    assert ["query", field] in [issue["loc"][:2] for issue in response.json()["detail"]]
     repository.list_cards.assert_not_awaited()
 
 
@@ -75,7 +84,7 @@ def test_openapi():
     schema = app.openapi()
     operation = schema["paths"]["/translations/cards"]["get"]
     assert {p["name"] for p in operation["parameters"]} == {
-        "lang", "kind", "translation_status", "name", "limit", "offset",
+        "lang", "kind", "translation_status", "name", "format", "legality", "limit", "offset",
     }
     models = schema["components"]["schemas"]
     assert models["TranslationCardItem"]["properties"]["card"]["$ref"].endswith("/CardResponse")
@@ -268,18 +277,25 @@ async def test_dense_sparse_and_empty_translation_pages(catalog, translated_coun
             assert seen == [card["oracle_id"] for card in expected]
 
 
-async def test_index_streams_before_existence_pagination(catalog):
+@pytest.mark.parametrize("with_format", [False, True])
+@pytest.mark.parametrize("status", ["missing", "present", "all"])
+async def test_index_streams_before_existence_pagination(catalog, with_format, status):
     from app.translation_repository import translation_cards_pipeline
     from app.translation_schemas import TranslationCardsParams
 
     _, db = catalog
     # Enough data to distinguish an indexed ordered stream from a full scan/join.
     await db.oracle_cards.insert_many([
-        {"oracle_id": f"stream-{i:05}", "name": f"Aardvark {i:05}", "layout": "normal"}
+        {"oracle_id": f"stream-{i:05}", "name": f"Aardvark {i:05}", "layout": "normal",
+         "legalities": {"modern": "legal" if i % 2 else "banned"}}
         for i in range(2000)
     ])
-    params = TranslationCardsParams(lang="pt", kind="cards", translation_status="missing",
-                                    limit=24)
+    await db.translations.insert_many([
+        {"oracle_id": f"stream-{i:05}", "lang": "pt", "name": ""}
+        for i in range(1, 2000, 4)
+    ])
+    params = TranslationCardsParams(lang="pt", kind="cards", translation_status=status,
+                                    format="modern" if with_format else None, limit=24)
     explain = await db.command("explain", {
         "aggregate": "oracle_cards", "pipeline": translation_cards_pipeline(params),
         "cursor": {}, "collation": {"locale": "simple"},
@@ -290,7 +306,11 @@ async def test_index_streams_before_existence_pagination(catalog):
     assert "'stage': 'SORT'" not in str(cursor["queryPlanner"]["winningPlan"])
     # The cursor may read ahead a whole batch; bound the actual join work instead.
     lookup = next(stage for stage in stages if "$lookup" in stage)
-    assert lookup["nReturned"] == 25
+    # Count only category/legality-compatible candidates up to the 25th result.
+    expected_joins = {("all", False): 25, ("all", True): 25,
+                      ("missing", False): 33, ("missing", True): 50,
+                      ("present", False): 98, ("present", True): 49}
+    assert lookup["nReturned"] == expected_joins[status, with_format]
     assert lookup["collectionScans"] == 0
 
 
@@ -313,3 +333,64 @@ async def test_public_search_keeps_its_order_and_legality_with_translation_index
     assert [card.oracle_id for card in second.items] == ["a"]
     assert first.has_next is True and second.has_next is False
     assert all(card.lang == "en" for card in [*first.items, *second.items])
+
+
+async def test_legality_normalization(api):
+    client, repository = api
+    for query, formats, legalities in [
+        ([("format", " MODERN,modern "), ("format", " Future_Format ")],
+         ["modern", "future_format"], ["legal", "restricted"]),
+        ([("format", "vintage"), ("legality", " BANNED,legal "), ("legality", "legal")],
+         ["vintage"], ["banned", "legal"]),
+    ]:
+        response = await client.get("/translations/cards", params=[
+            ("lang", "pt"), ("kind", "cards"), *query,
+        ])
+        assert response.status_code == 200, response.text
+        params = repository.list_cards.call_args.args[0]
+        assert params.format == formats
+        assert params.legality == legalities
+
+
+async def test_format_filters_before_pagination_and_crud(catalog):
+    client, db = catalog
+    legalities = {
+        "a": {"modern": "banned", "pioneer": "legal"},
+        "b": {"modern": "restricted", "pioneer": "banned"},
+        "c": {"modern": "legal"},
+        "d": {}, "e": {"future_format": "legal"},
+        "j": {"modern": "not_legal"},
+    }
+    for identity, values in legalities.items():
+        await db.oracle_cards.update_one({"oracle_id": identity}, {"$set": {"legalities": values}})
+    await db.oracle_cards.update_one({"oracle_id": "d"}, {"$unset": {"legalities": ""}})
+    filters = {"format": "modern,pioneer"}
+    assert ids(await page(client, **filters)) == ["a", "b", "c"]
+    assert ids(await page(client, **filters, legality="banned")) == ["a", "b"]
+    assert ids(await page(client, **filters, legality="not_legal")) == ["j"]
+    assert ids(await page(client, format="future_format")) == ["e"]
+    assert ids(await page(client, format="unknown_format")) == []
+    assert ids(await page(client)) == ["a", "b", "c", "j", "d", "e"]
+    for status, expected in [("all", ["a", "b", "c"]), ("missing", ["a"]),
+                             ("present", ["b", "c"])]:
+        for limit in (1, 2, 3):
+            for offset in range(6):
+                result = await page(client, **filters, translation_status=status,
+                                    limit=limit, offset=offset)
+                assert ids(result) == expected[offset:offset + limit]
+                assert result["hasNext"] is (offset + limit < len(expected))
+    assert ids(await page(client, **filters, name=" ALPHA ",
+                          translation_status="present")) == ["b"]
+    assert ids(await page(client, **filters, lang="ES", name="Alpha",
+                          translation_status="present")) == ["a"]
+    original = (await page(client, **filters, name="Back"))["items"][0]
+    assert [face["name"] for face in original["card"]["card_faces"]] == ["Front", "Back"]
+    created = await client.post("/translations", json={
+        "oracle_id": "a", "lang": "pt", "name": "Alfa",
+    })
+    assert created.status_code == 201
+    identity = created.json()["id"]
+    assert ids(await page(client, **filters, translation_status="missing")) == []
+    assert (await page(client, **filters))["items"][0]["translation_id"] == identity
+    assert (await client.delete(f"/translations/{identity}")).status_code == 204
+    assert ids(await page(client, **filters, translation_status="missing")) == ["a"]

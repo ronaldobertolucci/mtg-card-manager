@@ -1,7 +1,9 @@
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
+
+from app.legalities import FormatIdentifier, Legality, normalize_formats, normalize_legalities
 
 LANGUAGE_PATTERN = r"^[A-Za-z]{2}(?:-[A-Za-z]{2})?$"
 
@@ -96,6 +98,17 @@ class TranslationCardsParams(BaseModel):
     kind: Literal["cards", "accessories"]
     translation_status: Literal["all", "missing", "present"] = "all"
     name: str | None = Field(default=None, min_length=1, max_length=200)
+    format: list[FormatIdentifier] | None = Field(
+        default=None, min_length=1,
+        description="Optional dynamic formats (OR), comma-separated or repeated. "
+        "Forbidden for accessories. Without legality, selects legal,restricted.",
+    )
+    legality: list[Legality] | None = Field(
+        default=None, min_length=1,
+        description="Optional statuses (OR), comma-separated or repeated. Requires format; "
+        "forbidden for accessories. Matches a selected status in at least one selected format. "
+        "Missing fields never match not_legal.",
+    )
     limit: int = Field(default=50, ge=1, le=200)
     offset: int = Field(default=0, ge=0, le=100_000)
 
@@ -105,3 +118,29 @@ class TranslationCardsParams(BaseModel):
     @classmethod
     def canonicalize_language(cls, value: str) -> str:
         return TranslationCreate.canonicalize_language(value)
+
+    @field_validator("format", mode="before")
+    @classmethod
+    def normalize_format(cls, value: Any) -> Any:
+        return normalize_formats(value)
+
+    @field_validator("legality", mode="before")
+    @classmethod
+    def normalize_legality(cls, value: Any) -> Any:
+        return normalize_legalities(value)
+
+    @field_validator("format", "legality")
+    @classmethod
+    def validate_catalog_filters(cls, value: Any, info: ValidationInfo) -> Any:
+        if value is not None:
+            if info.data.get("kind") == "accessories":
+                raise ValueError(f"kind=accessories cannot be combined with {info.field_name}")
+            if info.field_name == "legality" and info.data.get("format") is None:
+                raise ValueError("legality requires format")
+        return value
+
+    @model_validator(mode="after")
+    def default_legalities(self) -> "TranslationCardsParams":
+        if self.format is not None and self.legality is None:
+            self.legality = [Legality.LEGAL, Legality.RESTRICTED]
+        return self

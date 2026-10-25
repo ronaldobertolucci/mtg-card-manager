@@ -2,7 +2,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.legalities import Legality
+from app.legalities import FormatIdentifier, Legality, normalize_formats, normalize_legalities
 from app.translation_schemas import LANGUAGE_PATTERN, normalize_language
 
 
@@ -90,9 +90,7 @@ class SearchParams(BaseModel):
         "false: complement of that eligibility. Uses official Oracle data and the front face. "
         "Omission does not filter commander eligibility.",
     )
-    format: list[
-        Annotated[str, Field(min_length=1, max_length=100, pattern=r"^[a-z][a-z0-9_]*$")]
-    ] | None = Field(
+    format: list[FormatIdentifier] | None = Field(
         default=None, min_length=1,
         description="Dynamic format identifiers (OR), comma-separated or repeated parameters. "
         "Required for kind=cards; forbidden for kind=accessories.",
@@ -122,24 +120,12 @@ class SearchParams(BaseModel):
     @field_validator("format", mode="before")
     @classmethod
     def normalize_format(cls, value: Any) -> Any:
-        if value is None:
-            return value
-        values = [value] if isinstance(value, str) else value
-        if not isinstance(values, list) or any(not isinstance(item, str) for item in values):
-            raise ValueError("format must be a comma-separated string or list of identifiers")
-        parts = (part.strip().lower() for item in values for part in item.split(","))
-        return list(dict.fromkeys(parts))
+        return normalize_formats(value)
 
     @field_validator("legality", mode="before")
     @classmethod
     def parse_legality(cls, value: Any) -> Any:
-        if value is None:
-            return value
-        values = [value] if isinstance(value, str) else value
-        if not isinstance(values, list) or any(not isinstance(item, str) for item in values):
-            raise ValueError("legality must be a comma-separated string")
-        parts = (part.strip().lower() for item in values for part in item.split(","))
-        return list(dict.fromkeys(parts))
+        return normalize_legalities(value)
 
     @field_validator("colors", "color_identity", mode="before")
     @classmethod

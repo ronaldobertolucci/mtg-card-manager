@@ -1,0 +1,3225 @@
+{
+  "started_utc": "2026-10-25T02:19:34.473538+00:00",
+  "repeats": 3,
+  "mongodb_version": "7.0.45",
+  "source_indexes": {
+    "oracle_cards": {
+      "_id_": {
+        "v": 2,
+        "key": [
+          [
+            "_id",
+            1
+          ]
+        ]
+      },
+      "ix_oracle_cards_id": {
+        "v": 2,
+        "key": [
+          [
+            "id",
+            1
+          ]
+        ]
+      },
+      "uq_oracle_cards_oracle_id": {
+        "v": 2,
+        "key": [
+          [
+            "oracle_id",
+            1
+          ]
+        ],
+        "unique": true
+      },
+      "ix_oracle_cards_name_oracle_id": {
+        "v": 2,
+        "key": [
+          [
+            "name",
+            1
+          ],
+          [
+            "oracle_id",
+            1
+          ]
+        ]
+      }
+    },
+    "translations": {
+      "_id_": {
+        "v": 2,
+        "key": [
+          [
+            "_id",
+            1
+          ]
+        ]
+      },
+      "uq_translation_oracle_lang": {
+        "v": 2,
+        "key": [
+          [
+            "oracle_id",
+            1
+          ],
+          [
+            "lang",
+            1
+          ]
+        ],
+        "unique": true
+      },
+      "ix_translation_lang": {
+        "v": 2,
+        "key": [
+          [
+            "lang",
+            1
+          ]
+        ]
+      }
+    }
+  },
+  "cases": [
+    {
+      "scenario": "filtered_offset_10000",
+      "params": {
+        "lang": "pt",
+        "kind": "cards",
+        "translation_status": "missing",
+        "name": null,
+        "format": [
+          "standard",
+          "modern",
+          "pioneer",
+          "legacy",
+          "commander"
+        ],
+        "legality": [
+          "legal",
+          "restricted"
+        ],
+        "limit": 24,
+        "offset": 10000
+      },
+      "identical_documents": true,
+      "returned_with_sentinel": 25,
+      "before": {
+        "ms": [
+          3128.493,
+          3119.296,
+          3129.023
+        ],
+        "median_ms": 3128.493,
+        "explain": {
+          "explainVersion": "1",
+          "stages": [
+            {
+              "$cursor": {
+                "queryPlanner": {
+                  "namespace": "test_translation_benchmark_0b1ff0d3804d4be98ae05fe23075ea11.oracle_cards",
+                  "indexFilterSet": false,
+                  "parsedQuery": {
+                    "$and": [
+                      {
+                        "$or": [
+                          {
+                            "legalities.commander": {
+                              "$in": [
+                                "legal",
+                                "restricted"
+                              ]
+                            }
+                          },
+                          {
+                            "legalities.legacy": {
+                              "$in": [
+                                "legal",
+                                "restricted"
+                              ]
+                            }
+                          },
+                          {
+                            "legalities.modern": {
+                              "$in": [
+                                "legal",
+                                "restricted"
+                              ]
+                            }
+                          },
+                          {
+                            "legalities.pioneer": {
+                              "$in": [
+                                "legal",
+                                "restricted"
+                              ]
+                            }
+                          },
+                          {
+                            "legalities.standard": {
+                              "$in": [
+                                "legal",
+                                "restricted"
+                              ]
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "$nor": [
+                          {
+                            "type_line": {
+                              "$regex": "Dungeon"
+                            }
+                          },
+                          {
+                            "layout": {
+                              "$in": [
+                                "double_faced_token",
+                                "emblem",
+                                "token"
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "queryHash": "64DD0F7A",
+                  "planCacheKey": "64DD0F7A",
+                  "optimizationTimeMillis": 0,
+                  "maxIndexedOrSolutionsReached": false,
+                  "maxIndexedAndSolutionsReached": false,
+                  "maxScansToExplodeReached": false,
+                  "winningPlan": {
+                    "stage": "COLLSCAN",
+                    "filter": {
+                      "$and": [
+                        {
+                          "$or": [
+                            {
+                              "legalities.commander": {
+                                "$in": [
+                                  "legal",
+                                  "restricted"
+                                ]
+                              }
+                            },
+                            {
+                              "legalities.legacy": {
+                                "$in": [
+                                  "legal",
+                                  "restricted"
+                                ]
+                              }
+                            },
+                            {
+                              "legalities.modern": {
+                                "$in": [
+                                  "legal",
+                                  "restricted"
+                                ]
+                              }
+                            },
+                            {
+                              "legalities.pioneer": {
+                                "$in": [
+                                  "legal",
+                                  "restricted"
+                                ]
+                              }
+                            },
+                            {
+                              "legalities.standard": {
+                                "$in": [
+                                  "legal",
+                                  "restricted"
+                                ]
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "$nor": [
+                            {
+                              "type_line": {
+                                "$regex": "Dungeon"
+                              }
+                            },
+                            {
+                              "layout": {
+                                "$in": [
+                                  "double_faced_token",
+                                  "emblem",
+                                  "token"
+                                ]
+                              }
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    "direction": "forward"
+                  },
+                  "rejectedPlans": []
+                },
+                "executionStats": {
+                  "executionSuccess": true,
+                  "nReturned": 32136,
+                  "executionTimeMillis": 3186,
+                  "totalKeysExamined": 0,
+                  "totalDocsExamined": 38991,
+                  "executionStages": {
+                    "stage": "COLLSCAN",
+                    "filter": {
+                      "$and": [
+                        {
+                          "$or": [
+                            {
+                              "legalities.commander": {
+                                "$in": [
+                                  "legal",
+                                  "restricted"
+                                ]
+                              }
+                            },
+                            {
+                              "legalities.legacy": {
+                                "$in": [
+                                  "legal",
+                                  "restricted"
+                                ]
+                              }
+                            },
+                            {
+                              "legalities.modern": {
+                                "$in": [
+                                  "legal",
+                                  "restricted"
+                                ]
+                              }
+                            },
+                            {
+                              "legalities.pioneer": {
+                                "$in": [
+                                  "legal",
+                                  "restricted"
+                                ]
+                              }
+                            },
+                            {
+                              "legalities.standard": {
+                                "$in": [
+                                  "legal",
+                                  "restricted"
+                                ]
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "$nor": [
+                            {
+                              "type_line": {
+                                "$regex": "Dungeon"
+                              }
+                            },
+                            {
+                              "layout": {
+                                "$in": [
+                                  "double_faced_token",
+                                  "emblem",
+                                  "token"
+                                ]
+                              }
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    "nReturned": 32136,
+                    "executionTimeMillisEstimate": 17,
+                    "works": 38992,
+                    "advanced": 32136,
+                    "needTime": 6855,
+                    "needYield": 0,
+                    "saveState": 83,
+                    "restoreState": 83,
+                    "isEOF": 1,
+                    "direction": "forward",
+                    "docsExamined": 38991
+                  }
+                }
+              },
+              "nReturned": 32136,
+              "executionTimeMillisEstimate": 23
+            },
+            {
+              "$lookup": {
+                "from": "translations",
+                "as": "_translation_records",
+                "let": {
+                  "oracle_id": "$oracle_id"
+                },
+                "pipeline": [
+                  {
+                    "$match": {
+                      "$expr": {
+                        "$and": [
+                          {
+                            "$eq": [
+                              "$oracle_id",
+                              "$$oracle_id"
+                            ]
+                          },
+                          {
+                            "$eq": [
+                              "$lang",
+                              "pt"
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "$project": {
+                      "_id": 1
+                    }
+                  }
+                ]
+              },
+              "totalDocsExamined": 21837,
+              "totalKeysExamined": 21837,
+              "collectionScans": 0,
+              "indexesUsed": [
+                "uq_translation_oracle_lang"
+              ],
+              "nReturned": 32136,
+              "executionTimeMillisEstimate": 3176
+            },
+            {
+              "$match": {
+                "_translation_records.0": {
+                  "$not": {
+                    "$exists": true
+                  }
+                }
+              },
+              "nReturned": 10299,
+              "executionTimeMillisEstimate": 3176
+            },
+            {
+              "$sort": {
+                "sortKey": {
+                  "name": 1,
+                  "oracle_id": 1
+                },
+                "limit": 10025
+              },
+              "totalDataSizeSortedBytesEstimate": 58001956,
+              "usedDisk": false,
+              "spills": 0,
+              "spilledDataStorageSize": 0,
+              "nReturned": 10025,
+              "executionTimeMillisEstimate": 3177
+            },
+            {
+              "$skip": 10000,
+              "nReturned": 25,
+              "executionTimeMillisEstimate": 3187
+            }
+          ],
+          "serverInfo": {
+            "host": "c06b1da38fc7",
+            "port": 27017,
+            "version": "7.0.45",
+            "gitVersion": "a52313e13ab55c9bddf7c3ff91dab286fa381796"
+          },
+          "serverParameters": {
+            "internalQueryFacetBufferSizeBytes": 104857600,
+            "internalQueryFacetMaxOutputDocSizeBytes": 104857600,
+            "internalLookupStageIntermediateDocumentMaxSizeBytes": 104857600,
+            "internalDocumentSourceGroupMaxMemoryBytes": 104857600,
+            "internalQueryMaxBlockingSortMemoryUsageBytes": 104857600,
+            "internalQueryProhibitBlockingMergeOnMongoS": 0,
+            "internalQueryMaxAddToSetBytes": 104857600,
+            "internalDocumentSourceSetWindowFieldsMaxMemoryBytes": 104857600,
+            "internalQueryFrameworkControl": "forceClassicEngine"
+          },
+          "command": {
+            "aggregate": "oracle_cards",
+            "pipeline": [
+              {
+                "$match": {
+                  "$nor": [
+                    {
+                      "layout": {
+                        "$in": [
+                          "token",
+                          "double_faced_token",
+                          "emblem"
+                        ]
+                      }
+                    },
+                    {
+                      "type_line": {
+                        "$regex": "Dungeon"
+                      }
+                    }
+                  ],
+                  "$or": [
+                    {
+                      "legalities.standard": {
+                        "$in": [
+                          "legal",
+                          "restricted"
+                        ]
+                      }
+                    },
+                    {
+                      "legalities.modern": {
+                        "$in": [
+                          "legal",
+                          "restricted"
+                        ]
+                      }
+                    },
+                    {
+                      "legalities.pioneer": {
+                        "$in": [
+                          "legal",
+                          "restricted"
+                        ]
+                      }
+                    },
+                    {
+                      "legalities.legacy": {
+                        "$in": [
+                          "legal",
+                          "restricted"
+                        ]
+                      }
+                    },
+                    {
+                      "legalities.commander": {
+                        "$in": [
+                          "legal",
+                          "restricted"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "$lookup": {
+                  "from": "translations",
+                  "let": {
+                    "oracle_id": "$oracle_id"
+                  },
+                  "pipeline": [
+                    {
+                      "$match": {
+                        "$expr": {
+                          "$and": [
+                            {
+                              "$eq": [
+                                "$oracle_id",
+                                "$$oracle_id"
+                              ]
+                            },
+                            {
+                              "$eq": [
+                                "$lang",
+                                "pt"
+                              ]
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "$project": {
+                        "_id": 1
+                      }
+                    }
+                  ],
+                  "as": "_translation_records"
+                }
+              },
+              {
+                "$match": {
+                  "_translation_records.0": {
+                    "$exists": false
+                  }
+                }
+              },
+              {
+                "$sort": {
+                  "name": 1,
+                  "oracle_id": 1
+                }
+              },
+              {
+                "$skip": 10000
+              },
+              {
+                "$limit": 25
+              }
+            ],
+            "cursor": {},
+            "collation": {
+              "locale": "simple"
+            },
+            "$db": "test_translation_benchmark_0b1ff0d3804d4be98ae05fe23075ea11"
+          },
+          "ok": 1.0
+        }
+      },
+      "after": {
+        "ms": [
+          3036.409,
+          3119.251,
+          3097.93
+        ],
+        "median_ms": 3097.93,
+        "explain": {
+          "explainVersion": "1",
+          "stages": [
+            {
+              "$cursor": {
+                "queryPlanner": {
+                  "namespace": "test_translation_benchmark_0b1ff0d3804d4be98ae05fe23075ea11.oracle_cards",
+                  "indexFilterSet": false,
+                  "parsedQuery": {
+                    "$and": [
+                      {
+                        "$or": [
+                          {
+                            "legalities.commander": {
+                              "$in": [
+                                "legal",
+                                "restricted"
+                              ]
+                            }
+                          },
+                          {
+                            "legalities.legacy": {
+                              "$in": [
+                                "legal",
+                                "restricted"
+                              ]
+                            }
+                          },
+                          {
+                            "legalities.modern": {
+                              "$in": [
+                                "legal",
+                                "restricted"
+                              ]
+                            }
+                          },
+                          {
+                            "legalities.pioneer": {
+                              "$in": [
+                                "legal",
+                                "restricted"
+                              ]
+                            }
+                          },
+                          {
+                            "legalities.standard": {
+                              "$in": [
+                                "legal",
+                                "restricted"
+                              ]
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "$nor": [
+                          {
+                            "type_line": {
+                              "$regex": "Dungeon"
+                            }
+                          },
+                          {
+                            "layout": {
+                              "$in": [
+                                "double_faced_token",
+                                "emblem",
+                                "token"
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "queryHash": "D699A6CB",
+                  "planCacheKey": "D699A6CB",
+                  "optimizationTimeMillis": 0,
+                  "maxIndexedOrSolutionsReached": false,
+                  "maxIndexedAndSolutionsReached": false,
+                  "maxScansToExplodeReached": false,
+                  "winningPlan": {
+                    "stage": "FETCH",
+                    "filter": {
+                      "$and": [
+                        {
+                          "$or": [
+                            {
+                              "legalities.commander": {
+                                "$in": [
+                                  "legal",
+                                  "restricted"
+                                ]
+                              }
+                            },
+                            {
+                              "legalities.legacy": {
+                                "$in": [
+                                  "legal",
+                                  "restricted"
+                                ]
+                              }
+                            },
+                            {
+                              "legalities.modern": {
+                                "$in": [
+                                  "legal",
+                                  "restricted"
+                                ]
+                              }
+                            },
+                            {
+                              "legalities.pioneer": {
+                                "$in": [
+                                  "legal",
+                                  "restricted"
+                                ]
+                              }
+                            },
+                            {
+                              "legalities.standard": {
+                                "$in": [
+                                  "legal",
+                                  "restricted"
+                                ]
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "$nor": [
+                            {
+                              "type_line": {
+                                "$regex": "Dungeon"
+                              }
+                            },
+                            {
+                              "layout": {
+                                "$in": [
+                                  "double_faced_token",
+                                  "emblem",
+                                  "token"
+                                ]
+                              }
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    "inputStage": {
+                      "stage": "IXSCAN",
+                      "keyPattern": {
+                        "name": 1,
+                        "oracle_id": 1
+                      },
+                      "indexName": "ix_oracle_cards_name_oracle_id",
+                      "isMultiKey": false,
+                      "multiKeyPaths": {
+                        "name": [],
+                        "oracle_id": []
+                      },
+                      "isUnique": false,
+                      "isSparse": false,
+                      "isPartial": false,
+                      "indexVersion": 2,
+                      "direction": "forward",
+                      "indexBounds": {
+                        "name": [
+                          "[MinKey, MaxKey]"
+                        ],
+                        "oracle_id": [
+                          "[MinKey, MaxKey]"
+                        ]
+                      }
+                    }
+                  },
+                  "rejectedPlans": []
+                },
+                "executionStats": {
+                  "executionSuccess": true,
+                  "nReturned": 31398,
+                  "executionTimeMillis": 3191,
+                  "totalKeysExamined": 38019,
+                  "totalDocsExamined": 38019,
+                  "executionStages": {
+                    "stage": "FETCH",
+                    "filter": {
+                      "$and": [
+                        {
+                          "$or": [
+                            {
+                              "legalities.commander": {
+                                "$in": [
+                                  "legal",
+                                  "restricted"
+                                ]
+                              }
+                            },
+                            {
+                              "legalities.legacy": {
+                                "$in": [
+                                  "legal",
+                                  "restricted"
+                                ]
+                              }
+                            },
+                            {
+                              "legalities.modern": {
+                                "$in": [
+                                  "legal",
+                                  "restricted"
+                                ]
+                              }
+                            },
+                            {
+                              "legalities.pioneer": {
+                                "$in": [
+                                  "legal",
+                                  "restricted"
+                                ]
+                              }
+                            },
+                            {
+                              "legalities.standard": {
+                                "$in": [
+                                  "legal",
+                                  "restricted"
+                                ]
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "$nor": [
+                            {
+                              "type_line": {
+                                "$regex": "Dungeon"
+                              }
+                            },
+                            {
+                              "layout": {
+                                "$in": [
+                                  "double_faced_token",
+                                  "emblem",
+                                  "token"
+                                ]
+                              }
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    "nReturned": 31398,
+                    "executionTimeMillisEstimate": 30,
+                    "works": 38019,
+                    "advanced": 31398,
+                    "needTime": 6621,
+                    "needYield": 0,
+                    "saveState": 83,
+                    "restoreState": 82,
+                    "isEOF": 0,
+                    "docsExamined": 38019,
+                    "alreadyHasObj": 0,
+                    "inputStage": {
+                      "stage": "IXSCAN",
+                      "nReturned": 38019,
+                      "executionTimeMillisEstimate": 4,
+                      "works": 38019,
+                      "advanced": 38019,
+                      "needTime": 0,
+                      "needYield": 0,
+                      "saveState": 83,
+                      "restoreState": 82,
+                      "isEOF": 0,
+                      "keyPattern": {
+                        "name": 1,
+                        "oracle_id": 1
+                      },
+                      "indexName": "ix_oracle_cards_name_oracle_id",
+                      "isMultiKey": false,
+                      "multiKeyPaths": {
+                        "name": [],
+                        "oracle_id": []
+                      },
+                      "isUnique": false,
+                      "isSparse": false,
+                      "isPartial": false,
+                      "indexVersion": 2,
+                      "direction": "forward",
+                      "indexBounds": {
+                        "name": [
+                          "[MinKey, MaxKey]"
+                        ],
+                        "oracle_id": [
+                          "[MinKey, MaxKey]"
+                        ]
+                      },
+                      "keysExamined": 38019,
+                      "seeks": 1,
+                      "dupsTested": 0,
+                      "dupsDropped": 0
+                    }
+                  }
+                }
+              },
+              "nReturned": 31355,
+              "executionTimeMillisEstimate": 39
+            },
+            {
+              "$lookup": {
+                "from": "translations",
+                "as": "_translation_records",
+                "let": {
+                  "oracle_id": "$oracle_id"
+                },
+                "pipeline": [
+                  {
+                    "$match": {
+                      "$expr": {
+                        "$and": [
+                          {
+                            "$eq": [
+                              "$oracle_id",
+                              "$$oracle_id"
+                            ]
+                          },
+                          {
+                            "$eq": [
+                              "$lang",
+                              "pt"
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "$project": {
+                      "_id": 1
+                    }
+                  }
+                ]
+              },
+              "totalDocsExamined": 21330,
+              "totalKeysExamined": 21330,
+              "collectionScans": 0,
+              "indexesUsed": [
+                "uq_translation_oracle_lang"
+              ],
+              "nReturned": 31355,
+              "executionTimeMillisEstimate": 3191
+            },
+            {
+              "$match": {
+                "_translation_records.0": {
+                  "$not": {
+                    "$exists": true
+                  }
+                }
+              },
+              "nReturned": 10025,
+              "executionTimeMillisEstimate": 3191
+            },
+            {
+              "$skip": 10000,
+              "nReturned": 25,
+              "executionTimeMillisEstimate": 3191
+            },
+            {
+              "$limit": 25,
+              "nReturned": 25,
+              "executionTimeMillisEstimate": 3191
+            }
+          ],
+          "serverInfo": {
+            "host": "c06b1da38fc7",
+            "port": 27017,
+            "version": "7.0.45",
+            "gitVersion": "a52313e13ab55c9bddf7c3ff91dab286fa381796"
+          },
+          "serverParameters": {
+            "internalQueryFacetBufferSizeBytes": 104857600,
+            "internalQueryFacetMaxOutputDocSizeBytes": 104857600,
+            "internalLookupStageIntermediateDocumentMaxSizeBytes": 104857600,
+            "internalDocumentSourceGroupMaxMemoryBytes": 104857600,
+            "internalQueryMaxBlockingSortMemoryUsageBytes": 104857600,
+            "internalQueryProhibitBlockingMergeOnMongoS": 0,
+            "internalQueryMaxAddToSetBytes": 104857600,
+            "internalDocumentSourceSetWindowFieldsMaxMemoryBytes": 104857600,
+            "internalQueryFrameworkControl": "forceClassicEngine"
+          },
+          "command": {
+            "aggregate": "oracle_cards",
+            "pipeline": [
+              {
+                "$match": {
+                  "$nor": [
+                    {
+                      "layout": {
+                        "$in": [
+                          "token",
+                          "double_faced_token",
+                          "emblem"
+                        ]
+                      }
+                    },
+                    {
+                      "type_line": {
+                        "$regex": "Dungeon"
+                      }
+                    }
+                  ],
+                  "$or": [
+                    {
+                      "legalities.standard": {
+                        "$in": [
+                          "legal",
+                          "restricted"
+                        ]
+                      }
+                    },
+                    {
+                      "legalities.modern": {
+                        "$in": [
+                          "legal",
+                          "restricted"
+                        ]
+                      }
+                    },
+                    {
+                      "legalities.pioneer": {
+                        "$in": [
+                          "legal",
+                          "restricted"
+                        ]
+                      }
+                    },
+                    {
+                      "legalities.legacy": {
+                        "$in": [
+                          "legal",
+                          "restricted"
+                        ]
+                      }
+                    },
+                    {
+                      "legalities.commander": {
+                        "$in": [
+                          "legal",
+                          "restricted"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "$sort": {
+                  "name": 1,
+                  "oracle_id": 1
+                }
+              },
+              {
+                "$lookup": {
+                  "from": "translations",
+                  "let": {
+                    "oracle_id": "$oracle_id"
+                  },
+                  "pipeline": [
+                    {
+                      "$match": {
+                        "$expr": {
+                          "$and": [
+                            {
+                              "$eq": [
+                                "$oracle_id",
+                                "$$oracle_id"
+                              ]
+                            },
+                            {
+                              "$eq": [
+                                "$lang",
+                                "pt"
+                              ]
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "$project": {
+                        "_id": 1
+                      }
+                    }
+                  ],
+                  "as": "_translation_records"
+                }
+              },
+              {
+                "$match": {
+                  "_translation_records.0": {
+                    "$exists": false
+                  }
+                }
+              },
+              {
+                "$skip": 10000
+              },
+              {
+                "$limit": 25
+              }
+            ],
+            "cursor": {},
+            "collation": {
+              "locale": "simple"
+            },
+            "$db": "test_translation_benchmark_0b1ff0d3804d4be98ae05fe23075ea11"
+          },
+          "ok": 1.0
+        }
+      }
+    },
+    {
+      "scenario": "filtered_offset_10000",
+      "params": {
+        "lang": "pt",
+        "kind": "cards",
+        "translation_status": "present",
+        "name": null,
+        "format": [
+          "standard",
+          "modern",
+          "pioneer",
+          "legacy",
+          "commander"
+        ],
+        "legality": [
+          "legal",
+          "restricted"
+        ],
+        "limit": 24,
+        "offset": 10000
+      },
+      "identical_documents": true,
+      "returned_with_sentinel": 25,
+      "before": {
+        "ms": [
+          3166.335,
+          3253.203,
+          3120.544
+        ],
+        "median_ms": 3166.335,
+        "explain": {
+          "explainVersion": "1",
+          "stages": [
+            {
+              "$cursor": {
+                "queryPlanner": {
+                  "namespace": "test_translation_benchmark_0b1ff0d3804d4be98ae05fe23075ea11.oracle_cards",
+                  "indexFilterSet": false,
+                  "parsedQuery": {
+                    "$and": [
+                      {
+                        "$or": [
+                          {
+                            "legalities.commander": {
+                              "$in": [
+                                "legal",
+                                "restricted"
+                              ]
+                            }
+                          },
+                          {
+                            "legalities.legacy": {
+                              "$in": [
+                                "legal",
+                                "restricted"
+                              ]
+                            }
+                          },
+                          {
+                            "legalities.modern": {
+                              "$in": [
+                                "legal",
+                                "restricted"
+                              ]
+                            }
+                          },
+                          {
+                            "legalities.pioneer": {
+                              "$in": [
+                                "legal",
+                                "restricted"
+                              ]
+                            }
+                          },
+                          {
+                            "legalities.standard": {
+                              "$in": [
+                                "legal",
+                                "restricted"
+                              ]
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "$nor": [
+                          {
+                            "type_line": {
+                              "$regex": "Dungeon"
+                            }
+                          },
+                          {
+                            "layout": {
+                              "$in": [
+                                "double_faced_token",
+                                "emblem",
+                                "token"
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "queryHash": "64DD0F7A",
+                  "planCacheKey": "64DD0F7A",
+                  "optimizationTimeMillis": 0,
+                  "maxIndexedOrSolutionsReached": false,
+                  "maxIndexedAndSolutionsReached": false,
+                  "maxScansToExplodeReached": false,
+                  "winningPlan": {
+                    "stage": "COLLSCAN",
+                    "filter": {
+                      "$and": [
+                        {
+                          "$or": [
+                            {
+                              "legalities.commander": {
+                                "$in": [
+                                  "legal",
+                                  "restricted"
+                                ]
+                              }
+                            },
+                            {
+                              "legalities.legacy": {
+                                "$in": [
+                                  "legal",
+                                  "restricted"
+                                ]
+                              }
+                            },
+                            {
+                              "legalities.modern": {
+                                "$in": [
+                                  "legal",
+                                  "restricted"
+                                ]
+                              }
+                            },
+                            {
+                              "legalities.pioneer": {
+                                "$in": [
+                                  "legal",
+                                  "restricted"
+                                ]
+                              }
+                            },
+                            {
+                              "legalities.standard": {
+                                "$in": [
+                                  "legal",
+                                  "restricted"
+                                ]
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "$nor": [
+                            {
+                              "type_line": {
+                                "$regex": "Dungeon"
+                              }
+                            },
+                            {
+                              "layout": {
+                                "$in": [
+                                  "double_faced_token",
+                                  "emblem",
+                                  "token"
+                                ]
+                              }
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    "direction": "forward"
+                  },
+                  "rejectedPlans": []
+                },
+                "executionStats": {
+                  "executionSuccess": true,
+                  "nReturned": 32136,
+                  "executionTimeMillis": 3263,
+                  "totalKeysExamined": 0,
+                  "totalDocsExamined": 38991,
+                  "executionStages": {
+                    "stage": "COLLSCAN",
+                    "filter": {
+                      "$and": [
+                        {
+                          "$or": [
+                            {
+                              "legalities.commander": {
+                                "$in": [
+                                  "legal",
+                                  "restricted"
+                                ]
+                              }
+                            },
+                            {
+                              "legalities.legacy": {
+                                "$in": [
+                                  "legal",
+                                  "restricted"
+                                ]
+                              }
+                            },
+                            {
+                              "legalities.modern": {
+                                "$in": [
+                                  "legal",
+                                  "restricted"
+                                ]
+                              }
+                            },
+                            {
+                              "legalities.pioneer": {
+                                "$in": [
+                                  "legal",
+                                  "restricted"
+                                ]
+                              }
+                            },
+                            {
+                              "legalities.standard": {
+                                "$in": [
+                                  "legal",
+                                  "restricted"
+                                ]
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "$nor": [
+                            {
+                              "type_line": {
+                                "$regex": "Dungeon"
+                              }
+                            },
+                            {
+                              "layout": {
+                                "$in": [
+                                  "double_faced_token",
+                                  "emblem",
+                                  "token"
+                                ]
+                              }
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    "nReturned": 32136,
+                    "executionTimeMillisEstimate": 4,
+                    "works": 38992,
+                    "advanced": 32136,
+                    "needTime": 6855,
+                    "needYield": 0,
+                    "saveState": 83,
+                    "restoreState": 83,
+                    "isEOF": 1,
+                    "direction": "forward",
+                    "docsExamined": 38991
+                  }
+                }
+              },
+              "nReturned": 32136,
+              "executionTimeMillisEstimate": 12
+            },
+            {
+              "$lookup": {
+                "from": "translations",
+                "as": "_translation_records",
+                "let": {
+                  "oracle_id": "$oracle_id"
+                },
+                "pipeline": [
+                  {
+                    "$match": {
+                      "$expr": {
+                        "$and": [
+                          {
+                            "$eq": [
+                              "$oracle_id",
+                              "$$oracle_id"
+                            ]
+                          },
+                          {
+                            "$eq": [
+                              "$lang",
+                              "pt"
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "$project": {
+                      "_id": 1
+                    }
+                  }
+                ]
+              },
+              "totalDocsExamined": 21837,
+              "totalKeysExamined": 21837,
+              "collectionScans": 0,
+              "indexesUsed": [
+                "uq_translation_oracle_lang"
+              ],
+              "nReturned": 32136,
+              "executionTimeMillisEstimate": 3250
+            },
+            {
+              "$match": {
+                "_translation_records.0": {
+                  "$exists": true
+                }
+              },
+              "nReturned": 21837,
+              "executionTimeMillisEstimate": 3250
+            },
+            {
+              "$sort": {
+                "sortKey": {
+                  "name": 1,
+                  "oracle_id": 1
+                },
+                "limit": 10025
+              },
+              "totalDataSizeSortedBytesEstimate": 59905974,
+              "usedDisk": false,
+              "spills": 0,
+              "spilledDataStorageSize": 0,
+              "nReturned": 10025,
+              "executionTimeMillisEstimate": 3252
+            },
+            {
+              "$skip": 10000,
+              "nReturned": 25,
+              "executionTimeMillisEstimate": 3263
+            }
+          ],
+          "serverInfo": {
+            "host": "c06b1da38fc7",
+            "port": 27017,
+            "version": "7.0.45",
+            "gitVersion": "a52313e13ab55c9bddf7c3ff91dab286fa381796"
+          },
+          "serverParameters": {
+            "internalQueryFacetBufferSizeBytes": 104857600,
+            "internalQueryFacetMaxOutputDocSizeBytes": 104857600,
+            "internalLookupStageIntermediateDocumentMaxSizeBytes": 104857600,
+            "internalDocumentSourceGroupMaxMemoryBytes": 104857600,
+            "internalQueryMaxBlockingSortMemoryUsageBytes": 104857600,
+            "internalQueryProhibitBlockingMergeOnMongoS": 0,
+            "internalQueryMaxAddToSetBytes": 104857600,
+            "internalDocumentSourceSetWindowFieldsMaxMemoryBytes": 104857600,
+            "internalQueryFrameworkControl": "forceClassicEngine"
+          },
+          "command": {
+            "aggregate": "oracle_cards",
+            "pipeline": [
+              {
+                "$match": {
+                  "$nor": [
+                    {
+                      "layout": {
+                        "$in": [
+                          "token",
+                          "double_faced_token",
+                          "emblem"
+                        ]
+                      }
+                    },
+                    {
+                      "type_line": {
+                        "$regex": "Dungeon"
+                      }
+                    }
+                  ],
+                  "$or": [
+                    {
+                      "legalities.standard": {
+                        "$in": [
+                          "legal",
+                          "restricted"
+                        ]
+                      }
+                    },
+                    {
+                      "legalities.modern": {
+                        "$in": [
+                          "legal",
+                          "restricted"
+                        ]
+                      }
+                    },
+                    {
+                      "legalities.pioneer": {
+                        "$in": [
+                          "legal",
+                          "restricted"
+                        ]
+                      }
+                    },
+                    {
+                      "legalities.legacy": {
+                        "$in": [
+                          "legal",
+                          "restricted"
+                        ]
+                      }
+                    },
+                    {
+                      "legalities.commander": {
+                        "$in": [
+                          "legal",
+                          "restricted"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "$lookup": {
+                  "from": "translations",
+                  "let": {
+                    "oracle_id": "$oracle_id"
+                  },
+                  "pipeline": [
+                    {
+                      "$match": {
+                        "$expr": {
+                          "$and": [
+                            {
+                              "$eq": [
+                                "$oracle_id",
+                                "$$oracle_id"
+                              ]
+                            },
+                            {
+                              "$eq": [
+                                "$lang",
+                                "pt"
+                              ]
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "$project": {
+                        "_id": 1
+                      }
+                    }
+                  ],
+                  "as": "_translation_records"
+                }
+              },
+              {
+                "$match": {
+                  "_translation_records.0": {
+                    "$exists": true
+                  }
+                }
+              },
+              {
+                "$sort": {
+                  "name": 1,
+                  "oracle_id": 1
+                }
+              },
+              {
+                "$skip": 10000
+              },
+              {
+                "$limit": 25
+              }
+            ],
+            "cursor": {},
+            "collation": {
+              "locale": "simple"
+            },
+            "$db": "test_translation_benchmark_0b1ff0d3804d4be98ae05fe23075ea11"
+          },
+          "ok": 1.0
+        }
+      },
+      "after": {
+        "ms": [
+          1483.909,
+          1394.785,
+          1438.853
+        ],
+        "median_ms": 1438.853,
+        "explain": {
+          "explainVersion": "1",
+          "stages": [
+            {
+              "$cursor": {
+                "queryPlanner": {
+                  "namespace": "test_translation_benchmark_0b1ff0d3804d4be98ae05fe23075ea11.oracle_cards",
+                  "indexFilterSet": false,
+                  "parsedQuery": {
+                    "$and": [
+                      {
+                        "$or": [
+                          {
+                            "legalities.commander": {
+                              "$in": [
+                                "legal",
+                                "restricted"
+                              ]
+                            }
+                          },
+                          {
+                            "legalities.legacy": {
+                              "$in": [
+                                "legal",
+                                "restricted"
+                              ]
+                            }
+                          },
+                          {
+                            "legalities.modern": {
+                              "$in": [
+                                "legal",
+                                "restricted"
+                              ]
+                            }
+                          },
+                          {
+                            "legalities.pioneer": {
+                              "$in": [
+                                "legal",
+                                "restricted"
+                              ]
+                            }
+                          },
+                          {
+                            "legalities.standard": {
+                              "$in": [
+                                "legal",
+                                "restricted"
+                              ]
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "$nor": [
+                          {
+                            "type_line": {
+                              "$regex": "Dungeon"
+                            }
+                          },
+                          {
+                            "layout": {
+                              "$in": [
+                                "double_faced_token",
+                                "emblem",
+                                "token"
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "queryHash": "D699A6CB",
+                  "planCacheKey": "D699A6CB",
+                  "optimizationTimeMillis": 0,
+                  "maxIndexedOrSolutionsReached": false,
+                  "maxIndexedAndSolutionsReached": false,
+                  "maxScansToExplodeReached": false,
+                  "winningPlan": {
+                    "stage": "FETCH",
+                    "filter": {
+                      "$and": [
+                        {
+                          "$or": [
+                            {
+                              "legalities.commander": {
+                                "$in": [
+                                  "legal",
+                                  "restricted"
+                                ]
+                              }
+                            },
+                            {
+                              "legalities.legacy": {
+                                "$in": [
+                                  "legal",
+                                  "restricted"
+                                ]
+                              }
+                            },
+                            {
+                              "legalities.modern": {
+                                "$in": [
+                                  "legal",
+                                  "restricted"
+                                ]
+                              }
+                            },
+                            {
+                              "legalities.pioneer": {
+                                "$in": [
+                                  "legal",
+                                  "restricted"
+                                ]
+                              }
+                            },
+                            {
+                              "legalities.standard": {
+                                "$in": [
+                                  "legal",
+                                  "restricted"
+                                ]
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "$nor": [
+                            {
+                              "type_line": {
+                                "$regex": "Dungeon"
+                              }
+                            },
+                            {
+                              "layout": {
+                                "$in": [
+                                  "double_faced_token",
+                                  "emblem",
+                                  "token"
+                                ]
+                              }
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    "inputStage": {
+                      "stage": "IXSCAN",
+                      "keyPattern": {
+                        "name": 1,
+                        "oracle_id": 1
+                      },
+                      "indexName": "ix_oracle_cards_name_oracle_id",
+                      "isMultiKey": false,
+                      "multiKeyPaths": {
+                        "name": [],
+                        "oracle_id": []
+                      },
+                      "isUnique": false,
+                      "isSparse": false,
+                      "isPartial": false,
+                      "indexVersion": 2,
+                      "direction": "forward",
+                      "indexBounds": {
+                        "name": [
+                          "[MinKey, MaxKey]"
+                        ],
+                        "oracle_id": [
+                          "[MinKey, MaxKey]"
+                        ]
+                      }
+                    }
+                  },
+                  "rejectedPlans": []
+                },
+                "executionStats": {
+                  "executionSuccess": true,
+                  "nReturned": 15298,
+                  "executionTimeMillis": 1486,
+                  "totalKeysExamined": 18489,
+                  "totalDocsExamined": 18489,
+                  "executionStages": {
+                    "stage": "FETCH",
+                    "filter": {
+                      "$and": [
+                        {
+                          "$or": [
+                            {
+                              "legalities.commander": {
+                                "$in": [
+                                  "legal",
+                                  "restricted"
+                                ]
+                              }
+                            },
+                            {
+                              "legalities.legacy": {
+                                "$in": [
+                                  "legal",
+                                  "restricted"
+                                ]
+                              }
+                            },
+                            {
+                              "legalities.modern": {
+                                "$in": [
+                                  "legal",
+                                  "restricted"
+                                ]
+                              }
+                            },
+                            {
+                              "legalities.pioneer": {
+                                "$in": [
+                                  "legal",
+                                  "restricted"
+                                ]
+                              }
+                            },
+                            {
+                              "legalities.standard": {
+                                "$in": [
+                                  "legal",
+                                  "restricted"
+                                ]
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "$nor": [
+                            {
+                              "type_line": {
+                                "$regex": "Dungeon"
+                              }
+                            },
+                            {
+                              "layout": {
+                                "$in": [
+                                  "double_faced_token",
+                                  "emblem",
+                                  "token"
+                                ]
+                              }
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    "nReturned": 15298,
+                    "executionTimeMillisEstimate": 18,
+                    "works": 18489,
+                    "advanced": 15298,
+                    "needTime": 3191,
+                    "needYield": 0,
+                    "saveState": 40,
+                    "restoreState": 39,
+                    "isEOF": 0,
+                    "docsExamined": 18489,
+                    "alreadyHasObj": 0,
+                    "inputStage": {
+                      "stage": "IXSCAN",
+                      "nReturned": 18489,
+                      "executionTimeMillisEstimate": 6,
+                      "works": 18489,
+                      "advanced": 18489,
+                      "needTime": 0,
+                      "needYield": 0,
+                      "saveState": 40,
+                      "restoreState": 39,
+                      "isEOF": 0,
+                      "keyPattern": {
+                        "name": 1,
+                        "oracle_id": 1
+                      },
+                      "indexName": "ix_oracle_cards_name_oracle_id",
+                      "isMultiKey": false,
+                      "multiKeyPaths": {
+                        "name": [],
+                        "oracle_id": []
+                      },
+                      "isUnique": false,
+                      "isSparse": false,
+                      "isPartial": false,
+                      "indexVersion": 2,
+                      "direction": "forward",
+                      "indexBounds": {
+                        "name": [
+                          "[MinKey, MaxKey]"
+                        ],
+                        "oracle_id": [
+                          "[MinKey, MaxKey]"
+                        ]
+                      },
+                      "keysExamined": 18489,
+                      "seeks": 1,
+                      "dupsTested": 0,
+                      "dupsDropped": 0
+                    }
+                  }
+                }
+              },
+              "nReturned": 14597,
+              "executionTimeMillisEstimate": 22
+            },
+            {
+              "$lookup": {
+                "from": "translations",
+                "as": "_translation_records",
+                "let": {
+                  "oracle_id": "$oracle_id"
+                },
+                "pipeline": [
+                  {
+                    "$match": {
+                      "$expr": {
+                        "$and": [
+                          {
+                            "$eq": [
+                              "$oracle_id",
+                              "$$oracle_id"
+                            ]
+                          },
+                          {
+                            "$eq": [
+                              "$lang",
+                              "pt"
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "$project": {
+                      "_id": 1
+                    }
+                  }
+                ]
+              },
+              "totalDocsExamined": 10025,
+              "totalKeysExamined": 10025,
+              "collectionScans": 0,
+              "indexesUsed": [
+                "uq_translation_oracle_lang"
+              ],
+              "nReturned": 14597,
+              "executionTimeMillisEstimate": 1486
+            },
+            {
+              "$match": {
+                "_translation_records.0": {
+                  "$exists": true
+                }
+              },
+              "nReturned": 10025,
+              "executionTimeMillisEstimate": 1486
+            },
+            {
+              "$skip": 10000,
+              "nReturned": 25,
+              "executionTimeMillisEstimate": 1486
+            },
+            {
+              "$limit": 25,
+              "nReturned": 25,
+              "executionTimeMillisEstimate": 1486
+            }
+          ],
+          "serverInfo": {
+            "host": "c06b1da38fc7",
+            "port": 27017,
+            "version": "7.0.45",
+            "gitVersion": "a52313e13ab55c9bddf7c3ff91dab286fa381796"
+          },
+          "serverParameters": {
+            "internalQueryFacetBufferSizeBytes": 104857600,
+            "internalQueryFacetMaxOutputDocSizeBytes": 104857600,
+            "internalLookupStageIntermediateDocumentMaxSizeBytes": 104857600,
+            "internalDocumentSourceGroupMaxMemoryBytes": 104857600,
+            "internalQueryMaxBlockingSortMemoryUsageBytes": 104857600,
+            "internalQueryProhibitBlockingMergeOnMongoS": 0,
+            "internalQueryMaxAddToSetBytes": 104857600,
+            "internalDocumentSourceSetWindowFieldsMaxMemoryBytes": 104857600,
+            "internalQueryFrameworkControl": "forceClassicEngine"
+          },
+          "command": {
+            "aggregate": "oracle_cards",
+            "pipeline": [
+              {
+                "$match": {
+                  "$nor": [
+                    {
+                      "layout": {
+                        "$in": [
+                          "token",
+                          "double_faced_token",
+                          "emblem"
+                        ]
+                      }
+                    },
+                    {
+                      "type_line": {
+                        "$regex": "Dungeon"
+                      }
+                    }
+                  ],
+                  "$or": [
+                    {
+                      "legalities.standard": {
+                        "$in": [
+                          "legal",
+                          "restricted"
+                        ]
+                      }
+                    },
+                    {
+                      "legalities.modern": {
+                        "$in": [
+                          "legal",
+                          "restricted"
+                        ]
+                      }
+                    },
+                    {
+                      "legalities.pioneer": {
+                        "$in": [
+                          "legal",
+                          "restricted"
+                        ]
+                      }
+                    },
+                    {
+                      "legalities.legacy": {
+                        "$in": [
+                          "legal",
+                          "restricted"
+                        ]
+                      }
+                    },
+                    {
+                      "legalities.commander": {
+                        "$in": [
+                          "legal",
+                          "restricted"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "$sort": {
+                  "name": 1,
+                  "oracle_id": 1
+                }
+              },
+              {
+                "$lookup": {
+                  "from": "translations",
+                  "let": {
+                    "oracle_id": "$oracle_id"
+                  },
+                  "pipeline": [
+                    {
+                      "$match": {
+                        "$expr": {
+                          "$and": [
+                            {
+                              "$eq": [
+                                "$oracle_id",
+                                "$$oracle_id"
+                              ]
+                            },
+                            {
+                              "$eq": [
+                                "$lang",
+                                "pt"
+                              ]
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "$project": {
+                        "_id": 1
+                      }
+                    }
+                  ],
+                  "as": "_translation_records"
+                }
+              },
+              {
+                "$match": {
+                  "_translation_records.0": {
+                    "$exists": true
+                  }
+                }
+              },
+              {
+                "$skip": 10000
+              },
+              {
+                "$limit": 25
+              }
+            ],
+            "cursor": {},
+            "collation": {
+              "locale": "simple"
+            },
+            "$db": "test_translation_benchmark_0b1ff0d3804d4be98ae05fe23075ea11"
+          },
+          "ok": 1.0
+        }
+      }
+    },
+    {
+      "scenario": "filtered_offset_10000",
+      "params": {
+        "lang": "pt",
+        "kind": "cards",
+        "translation_status": "all",
+        "name": null,
+        "format": [
+          "standard",
+          "modern",
+          "pioneer",
+          "legacy",
+          "commander"
+        ],
+        "legality": [
+          "legal",
+          "restricted"
+        ],
+        "limit": 24,
+        "offset": 10000
+      },
+      "identical_documents": true,
+      "returned_with_sentinel": 25,
+      "before": {
+        "ms": [
+          40.408,
+          39.386,
+          38.501
+        ],
+        "median_ms": 39.386,
+        "explain": {
+          "explainVersion": "1",
+          "stages": [
+            {
+              "$cursor": {
+                "queryPlanner": {
+                  "namespace": "test_translation_benchmark_0b1ff0d3804d4be98ae05fe23075ea11.oracle_cards",
+                  "indexFilterSet": false,
+                  "parsedQuery": {
+                    "$and": [
+                      {
+                        "$or": [
+                          {
+                            "legalities.commander": {
+                              "$in": [
+                                "legal",
+                                "restricted"
+                              ]
+                            }
+                          },
+                          {
+                            "legalities.legacy": {
+                              "$in": [
+                                "legal",
+                                "restricted"
+                              ]
+                            }
+                          },
+                          {
+                            "legalities.modern": {
+                              "$in": [
+                                "legal",
+                                "restricted"
+                              ]
+                            }
+                          },
+                          {
+                            "legalities.pioneer": {
+                              "$in": [
+                                "legal",
+                                "restricted"
+                              ]
+                            }
+                          },
+                          {
+                            "legalities.standard": {
+                              "$in": [
+                                "legal",
+                                "restricted"
+                              ]
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "$nor": [
+                          {
+                            "type_line": {
+                              "$regex": "Dungeon"
+                            }
+                          },
+                          {
+                            "layout": {
+                              "$in": [
+                                "double_faced_token",
+                                "emblem",
+                                "token"
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "queryHash": "D699A6CB",
+                  "planCacheKey": "D699A6CB",
+                  "optimizationTimeMillis": 0,
+                  "maxIndexedOrSolutionsReached": false,
+                  "maxIndexedAndSolutionsReached": false,
+                  "maxScansToExplodeReached": false,
+                  "winningPlan": {
+                    "stage": "LIMIT",
+                    "limitAmount": 25,
+                    "inputStage": {
+                      "stage": "SKIP",
+                      "skipAmount": 10000,
+                      "inputStage": {
+                        "stage": "FETCH",
+                        "filter": {
+                          "$and": [
+                            {
+                              "$or": [
+                                {
+                                  "legalities.commander": {
+                                    "$in": [
+                                      "legal",
+                                      "restricted"
+                                    ]
+                                  }
+                                },
+                                {
+                                  "legalities.legacy": {
+                                    "$in": [
+                                      "legal",
+                                      "restricted"
+                                    ]
+                                  }
+                                },
+                                {
+                                  "legalities.modern": {
+                                    "$in": [
+                                      "legal",
+                                      "restricted"
+                                    ]
+                                  }
+                                },
+                                {
+                                  "legalities.pioneer": {
+                                    "$in": [
+                                      "legal",
+                                      "restricted"
+                                    ]
+                                  }
+                                },
+                                {
+                                  "legalities.standard": {
+                                    "$in": [
+                                      "legal",
+                                      "restricted"
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "$nor": [
+                                {
+                                  "type_line": {
+                                    "$regex": "Dungeon"
+                                  }
+                                },
+                                {
+                                  "layout": {
+                                    "$in": [
+                                      "double_faced_token",
+                                      "emblem",
+                                      "token"
+                                    ]
+                                  }
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        "inputStage": {
+                          "stage": "IXSCAN",
+                          "keyPattern": {
+                            "name": 1,
+                            "oracle_id": 1
+                          },
+                          "indexName": "ix_oracle_cards_name_oracle_id",
+                          "isMultiKey": false,
+                          "multiKeyPaths": {
+                            "name": [],
+                            "oracle_id": []
+                          },
+                          "isUnique": false,
+                          "isSparse": false,
+                          "isPartial": false,
+                          "indexVersion": 2,
+                          "direction": "forward",
+                          "indexBounds": {
+                            "name": [
+                              "[MinKey, MaxKey]"
+                            ],
+                            "oracle_id": [
+                              "[MinKey, MaxKey]"
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "rejectedPlans": []
+                },
+                "executionStats": {
+                  "executionSuccess": true,
+                  "nReturned": 25,
+                  "executionTimeMillis": 37,
+                  "totalKeysExamined": 12038,
+                  "totalDocsExamined": 12038,
+                  "executionStages": {
+                    "stage": "LIMIT",
+                    "nReturned": 25,
+                    "executionTimeMillisEstimate": 7,
+                    "works": 12039,
+                    "advanced": 25,
+                    "needTime": 12013,
+                    "needYield": 0,
+                    "saveState": 13,
+                    "restoreState": 13,
+                    "isEOF": 1,
+                    "limitAmount": 25,
+                    "inputStage": {
+                      "stage": "SKIP",
+                      "nReturned": 25,
+                      "executionTimeMillisEstimate": 7,
+                      "works": 12038,
+                      "advanced": 25,
+                      "needTime": 12013,
+                      "needYield": 0,
+                      "saveState": 13,
+                      "restoreState": 13,
+                      "isEOF": 0,
+                      "skipAmount": 10000,
+                      "inputStage": {
+                        "stage": "FETCH",
+                        "filter": {
+                          "$and": [
+                            {
+                              "$or": [
+                                {
+                                  "legalities.commander": {
+                                    "$in": [
+                                      "legal",
+                                      "restricted"
+                                    ]
+                                  }
+                                },
+                                {
+                                  "legalities.legacy": {
+                                    "$in": [
+                                      "legal",
+                                      "restricted"
+                                    ]
+                                  }
+                                },
+                                {
+                                  "legalities.modern": {
+                                    "$in": [
+                                      "legal",
+                                      "restricted"
+                                    ]
+                                  }
+                                },
+                                {
+                                  "legalities.pioneer": {
+                                    "$in": [
+                                      "legal",
+                                      "restricted"
+                                    ]
+                                  }
+                                },
+                                {
+                                  "legalities.standard": {
+                                    "$in": [
+                                      "legal",
+                                      "restricted"
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "$nor": [
+                                {
+                                  "type_line": {
+                                    "$regex": "Dungeon"
+                                  }
+                                },
+                                {
+                                  "layout": {
+                                    "$in": [
+                                      "double_faced_token",
+                                      "emblem",
+                                      "token"
+                                    ]
+                                  }
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        "nReturned": 10025,
+                        "executionTimeMillisEstimate": 7,
+                        "works": 12038,
+                        "advanced": 10025,
+                        "needTime": 2013,
+                        "needYield": 0,
+                        "saveState": 13,
+                        "restoreState": 13,
+                        "isEOF": 0,
+                        "docsExamined": 12038,
+                        "alreadyHasObj": 0,
+                        "inputStage": {
+                          "stage": "IXSCAN",
+                          "nReturned": 12038,
+                          "executionTimeMillisEstimate": 1,
+                          "works": 12038,
+                          "advanced": 12038,
+                          "needTime": 0,
+                          "needYield": 0,
+                          "saveState": 13,
+                          "restoreState": 13,
+                          "isEOF": 0,
+                          "keyPattern": {
+                            "name": 1,
+                            "oracle_id": 1
+                          },
+                          "indexName": "ix_oracle_cards_name_oracle_id",
+                          "isMultiKey": false,
+                          "multiKeyPaths": {
+                            "name": [],
+                            "oracle_id": []
+                          },
+                          "isUnique": false,
+                          "isSparse": false,
+                          "isPartial": false,
+                          "indexVersion": 2,
+                          "direction": "forward",
+                          "indexBounds": {
+                            "name": [
+                              "[MinKey, MaxKey]"
+                            ],
+                            "oracle_id": [
+                              "[MinKey, MaxKey]"
+                            ]
+                          },
+                          "keysExamined": 12038,
+                          "seeks": 1,
+                          "dupsTested": 0,
+                          "dupsDropped": 0
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "nReturned": 25,
+              "executionTimeMillisEstimate": 35
+            },
+            {
+              "$lookup": {
+                "from": "translations",
+                "as": "_translation_records",
+                "let": {
+                  "oracle_id": "$oracle_id"
+                },
+                "pipeline": [
+                  {
+                    "$match": {
+                      "$expr": {
+                        "$and": [
+                          {
+                            "$eq": [
+                              "$oracle_id",
+                              "$$oracle_id"
+                            ]
+                          },
+                          {
+                            "$eq": [
+                              "$lang",
+                              "pt"
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "$project": {
+                      "_id": 1
+                    }
+                  }
+                ]
+              },
+              "totalDocsExamined": 16,
+              "totalKeysExamined": 16,
+              "collectionScans": 0,
+              "indexesUsed": [
+                "uq_translation_oracle_lang"
+              ],
+              "nReturned": 25,
+              "executionTimeMillisEstimate": 37
+            }
+          ],
+          "serverInfo": {
+            "host": "c06b1da38fc7",
+            "port": 27017,
+            "version": "7.0.45",
+            "gitVersion": "a52313e13ab55c9bddf7c3ff91dab286fa381796"
+          },
+          "serverParameters": {
+            "internalQueryFacetBufferSizeBytes": 104857600,
+            "internalQueryFacetMaxOutputDocSizeBytes": 104857600,
+            "internalLookupStageIntermediateDocumentMaxSizeBytes": 104857600,
+            "internalDocumentSourceGroupMaxMemoryBytes": 104857600,
+            "internalQueryMaxBlockingSortMemoryUsageBytes": 104857600,
+            "internalQueryProhibitBlockingMergeOnMongoS": 0,
+            "internalQueryMaxAddToSetBytes": 104857600,
+            "internalDocumentSourceSetWindowFieldsMaxMemoryBytes": 104857600,
+            "internalQueryFrameworkControl": "forceClassicEngine"
+          },
+          "command": {
+            "aggregate": "oracle_cards",
+            "pipeline": [
+              {
+                "$match": {
+                  "$nor": [
+                    {
+                      "layout": {
+                        "$in": [
+                          "token",
+                          "double_faced_token",
+                          "emblem"
+                        ]
+                      }
+                    },
+                    {
+                      "type_line": {
+                        "$regex": "Dungeon"
+                      }
+                    }
+                  ],
+                  "$or": [
+                    {
+                      "legalities.standard": {
+                        "$in": [
+                          "legal",
+                          "restricted"
+                        ]
+                      }
+                    },
+                    {
+                      "legalities.modern": {
+                        "$in": [
+                          "legal",
+                          "restricted"
+                        ]
+                      }
+                    },
+                    {
+                      "legalities.pioneer": {
+                        "$in": [
+                          "legal",
+                          "restricted"
+                        ]
+                      }
+                    },
+                    {
+                      "legalities.legacy": {
+                        "$in": [
+                          "legal",
+                          "restricted"
+                        ]
+                      }
+                    },
+                    {
+                      "legalities.commander": {
+                        "$in": [
+                          "legal",
+                          "restricted"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "$lookup": {
+                  "from": "translations",
+                  "let": {
+                    "oracle_id": "$oracle_id"
+                  },
+                  "pipeline": [
+                    {
+                      "$match": {
+                        "$expr": {
+                          "$and": [
+                            {
+                              "$eq": [
+                                "$oracle_id",
+                                "$$oracle_id"
+                              ]
+                            },
+                            {
+                              "$eq": [
+                                "$lang",
+                                "pt"
+                              ]
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "$project": {
+                        "_id": 1
+                      }
+                    }
+                  ],
+                  "as": "_translation_records"
+                }
+              },
+              {
+                "$sort": {
+                  "name": 1,
+                  "oracle_id": 1
+                }
+              },
+              {
+                "$skip": 10000
+              },
+              {
+                "$limit": 25
+              }
+            ],
+            "cursor": {},
+            "collation": {
+              "locale": "simple"
+            },
+            "$db": "test_translation_benchmark_0b1ff0d3804d4be98ae05fe23075ea11"
+          },
+          "ok": 1.0
+        }
+      },
+      "after": {
+        "ms": [
+          41.782,
+          41.597,
+          44.132
+        ],
+        "median_ms": 41.782,
+        "explain": {
+          "explainVersion": "1",
+          "stages": [
+            {
+              "$cursor": {
+                "queryPlanner": {
+                  "namespace": "test_translation_benchmark_0b1ff0d3804d4be98ae05fe23075ea11.oracle_cards",
+                  "indexFilterSet": false,
+                  "parsedQuery": {
+                    "$and": [
+                      {
+                        "$or": [
+                          {
+                            "legalities.commander": {
+                              "$in": [
+                                "legal",
+                                "restricted"
+                              ]
+                            }
+                          },
+                          {
+                            "legalities.legacy": {
+                              "$in": [
+                                "legal",
+                                "restricted"
+                              ]
+                            }
+                          },
+                          {
+                            "legalities.modern": {
+                              "$in": [
+                                "legal",
+                                "restricted"
+                              ]
+                            }
+                          },
+                          {
+                            "legalities.pioneer": {
+                              "$in": [
+                                "legal",
+                                "restricted"
+                              ]
+                            }
+                          },
+                          {
+                            "legalities.standard": {
+                              "$in": [
+                                "legal",
+                                "restricted"
+                              ]
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "$nor": [
+                          {
+                            "type_line": {
+                              "$regex": "Dungeon"
+                            }
+                          },
+                          {
+                            "layout": {
+                              "$in": [
+                                "double_faced_token",
+                                "emblem",
+                                "token"
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "queryHash": "D699A6CB",
+                  "planCacheKey": "D699A6CB",
+                  "optimizationTimeMillis": 0,
+                  "maxIndexedOrSolutionsReached": false,
+                  "maxIndexedAndSolutionsReached": false,
+                  "maxScansToExplodeReached": false,
+                  "winningPlan": {
+                    "stage": "LIMIT",
+                    "limitAmount": 25,
+                    "inputStage": {
+                      "stage": "SKIP",
+                      "skipAmount": 10000,
+                      "inputStage": {
+                        "stage": "FETCH",
+                        "filter": {
+                          "$and": [
+                            {
+                              "$or": [
+                                {
+                                  "legalities.commander": {
+                                    "$in": [
+                                      "legal",
+                                      "restricted"
+                                    ]
+                                  }
+                                },
+                                {
+                                  "legalities.legacy": {
+                                    "$in": [
+                                      "legal",
+                                      "restricted"
+                                    ]
+                                  }
+                                },
+                                {
+                                  "legalities.modern": {
+                                    "$in": [
+                                      "legal",
+                                      "restricted"
+                                    ]
+                                  }
+                                },
+                                {
+                                  "legalities.pioneer": {
+                                    "$in": [
+                                      "legal",
+                                      "restricted"
+                                    ]
+                                  }
+                                },
+                                {
+                                  "legalities.standard": {
+                                    "$in": [
+                                      "legal",
+                                      "restricted"
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "$nor": [
+                                {
+                                  "type_line": {
+                                    "$regex": "Dungeon"
+                                  }
+                                },
+                                {
+                                  "layout": {
+                                    "$in": [
+                                      "double_faced_token",
+                                      "emblem",
+                                      "token"
+                                    ]
+                                  }
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        "inputStage": {
+                          "stage": "IXSCAN",
+                          "keyPattern": {
+                            "name": 1,
+                            "oracle_id": 1
+                          },
+                          "indexName": "ix_oracle_cards_name_oracle_id",
+                          "isMultiKey": false,
+                          "multiKeyPaths": {
+                            "name": [],
+                            "oracle_id": []
+                          },
+                          "isUnique": false,
+                          "isSparse": false,
+                          "isPartial": false,
+                          "indexVersion": 2,
+                          "direction": "forward",
+                          "indexBounds": {
+                            "name": [
+                              "[MinKey, MaxKey]"
+                            ],
+                            "oracle_id": [
+                              "[MinKey, MaxKey]"
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "rejectedPlans": []
+                },
+                "executionStats": {
+                  "executionSuccess": true,
+                  "nReturned": 25,
+                  "executionTimeMillis": 40,
+                  "totalKeysExamined": 12038,
+                  "totalDocsExamined": 12038,
+                  "executionStages": {
+                    "stage": "LIMIT",
+                    "nReturned": 25,
+                    "executionTimeMillisEstimate": 8,
+                    "works": 12039,
+                    "advanced": 25,
+                    "needTime": 12013,
+                    "needYield": 0,
+                    "saveState": 13,
+                    "restoreState": 13,
+                    "isEOF": 1,
+                    "limitAmount": 25,
+                    "inputStage": {
+                      "stage": "SKIP",
+                      "nReturned": 25,
+                      "executionTimeMillisEstimate": 8,
+                      "works": 12038,
+                      "advanced": 25,
+                      "needTime": 12013,
+                      "needYield": 0,
+                      "saveState": 13,
+                      "restoreState": 13,
+                      "isEOF": 0,
+                      "skipAmount": 10000,
+                      "inputStage": {
+                        "stage": "FETCH",
+                        "filter": {
+                          "$and": [
+                            {
+                              "$or": [
+                                {
+                                  "legalities.commander": {
+                                    "$in": [
+                                      "legal",
+                                      "restricted"
+                                    ]
+                                  }
+                                },
+                                {
+                                  "legalities.legacy": {
+                                    "$in": [
+                                      "legal",
+                                      "restricted"
+                                    ]
+                                  }
+                                },
+                                {
+                                  "legalities.modern": {
+                                    "$in": [
+                                      "legal",
+                                      "restricted"
+                                    ]
+                                  }
+                                },
+                                {
+                                  "legalities.pioneer": {
+                                    "$in": [
+                                      "legal",
+                                      "restricted"
+                                    ]
+                                  }
+                                },
+                                {
+                                  "legalities.standard": {
+                                    "$in": [
+                                      "legal",
+                                      "restricted"
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "$nor": [
+                                {
+                                  "type_line": {
+                                    "$regex": "Dungeon"
+                                  }
+                                },
+                                {
+                                  "layout": {
+                                    "$in": [
+                                      "double_faced_token",
+                                      "emblem",
+                                      "token"
+                                    ]
+                                  }
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        "nReturned": 10025,
+                        "executionTimeMillisEstimate": 8,
+                        "works": 12038,
+                        "advanced": 10025,
+                        "needTime": 2013,
+                        "needYield": 0,
+                        "saveState": 13,
+                        "restoreState": 13,
+                        "isEOF": 0,
+                        "docsExamined": 12038,
+                        "alreadyHasObj": 0,
+                        "inputStage": {
+                          "stage": "IXSCAN",
+                          "nReturned": 12038,
+                          "executionTimeMillisEstimate": 0,
+                          "works": 12038,
+                          "advanced": 12038,
+                          "needTime": 0,
+                          "needYield": 0,
+                          "saveState": 13,
+                          "restoreState": 13,
+                          "isEOF": 0,
+                          "keyPattern": {
+                            "name": 1,
+                            "oracle_id": 1
+                          },
+                          "indexName": "ix_oracle_cards_name_oracle_id",
+                          "isMultiKey": false,
+                          "multiKeyPaths": {
+                            "name": [],
+                            "oracle_id": []
+                          },
+                          "isUnique": false,
+                          "isSparse": false,
+                          "isPartial": false,
+                          "indexVersion": 2,
+                          "direction": "forward",
+                          "indexBounds": {
+                            "name": [
+                              "[MinKey, MaxKey]"
+                            ],
+                            "oracle_id": [
+                              "[MinKey, MaxKey]"
+                            ]
+                          },
+                          "keysExamined": 12038,
+                          "seeks": 1,
+                          "dupsTested": 0,
+                          "dupsDropped": 0
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "nReturned": 25,
+              "executionTimeMillisEstimate": 37
+            },
+            {
+              "$lookup": {
+                "from": "translations",
+                "as": "_translation_records",
+                "let": {
+                  "oracle_id": "$oracle_id"
+                },
+                "pipeline": [
+                  {
+                    "$match": {
+                      "$expr": {
+                        "$and": [
+                          {
+                            "$eq": [
+                              "$oracle_id",
+                              "$$oracle_id"
+                            ]
+                          },
+                          {
+                            "$eq": [
+                              "$lang",
+                              "pt"
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "$project": {
+                      "_id": 1
+                    }
+                  }
+                ]
+              },
+              "totalDocsExamined": 16,
+              "totalKeysExamined": 16,
+              "collectionScans": 0,
+              "indexesUsed": [
+                "uq_translation_oracle_lang"
+              ],
+              "nReturned": 25,
+              "executionTimeMillisEstimate": 40
+            }
+          ],
+          "serverInfo": {
+            "host": "c06b1da38fc7",
+            "port": 27017,
+            "version": "7.0.45",
+            "gitVersion": "a52313e13ab55c9bddf7c3ff91dab286fa381796"
+          },
+          "serverParameters": {
+            "internalQueryFacetBufferSizeBytes": 104857600,
+            "internalQueryFacetMaxOutputDocSizeBytes": 104857600,
+            "internalLookupStageIntermediateDocumentMaxSizeBytes": 104857600,
+            "internalDocumentSourceGroupMaxMemoryBytes": 104857600,
+            "internalQueryMaxBlockingSortMemoryUsageBytes": 104857600,
+            "internalQueryProhibitBlockingMergeOnMongoS": 0,
+            "internalQueryMaxAddToSetBytes": 104857600,
+            "internalDocumentSourceSetWindowFieldsMaxMemoryBytes": 104857600,
+            "internalQueryFrameworkControl": "forceClassicEngine"
+          },
+          "command": {
+            "aggregate": "oracle_cards",
+            "pipeline": [
+              {
+                "$match": {
+                  "$nor": [
+                    {
+                      "layout": {
+                        "$in": [
+                          "token",
+                          "double_faced_token",
+                          "emblem"
+                        ]
+                      }
+                    },
+                    {
+                      "type_line": {
+                        "$regex": "Dungeon"
+                      }
+                    }
+                  ],
+                  "$or": [
+                    {
+                      "legalities.standard": {
+                        "$in": [
+                          "legal",
+                          "restricted"
+                        ]
+                      }
+                    },
+                    {
+                      "legalities.modern": {
+                        "$in": [
+                          "legal",
+                          "restricted"
+                        ]
+                      }
+                    },
+                    {
+                      "legalities.pioneer": {
+                        "$in": [
+                          "legal",
+                          "restricted"
+                        ]
+                      }
+                    },
+                    {
+                      "legalities.legacy": {
+                        "$in": [
+                          "legal",
+                          "restricted"
+                        ]
+                      }
+                    },
+                    {
+                      "legalities.commander": {
+                        "$in": [
+                          "legal",
+                          "restricted"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "$sort": {
+                  "name": 1,
+                  "oracle_id": 1
+                }
+              },
+              {
+                "$skip": 10000
+              },
+              {
+                "$limit": 25
+              },
+              {
+                "$lookup": {
+                  "from": "translations",
+                  "let": {
+                    "oracle_id": "$oracle_id"
+                  },
+                  "pipeline": [
+                    {
+                      "$match": {
+                        "$expr": {
+                          "$and": [
+                            {
+                              "$eq": [
+                                "$oracle_id",
+                                "$$oracle_id"
+                              ]
+                            },
+                            {
+                              "$eq": [
+                                "$lang",
+                                "pt"
+                              ]
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "$project": {
+                        "_id": 1
+                      }
+                    }
+                  ],
+                  "as": "_translation_records"
+                }
+              }
+            ],
+            "cursor": {},
+            "collation": {
+              "locale": "simple"
+            },
+            "$db": "test_translation_benchmark_0b1ff0d3804d4be98ae05fe23075ea11"
+          },
+          "ok": 1.0
+        }
+      }
+    }
+  ],
+  "counts": {
+    "oracle_cards": 38991,
+    "translations": 21888
+  },
+  "ablations": {}
+}

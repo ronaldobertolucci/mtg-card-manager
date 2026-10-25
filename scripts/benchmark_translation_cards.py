@@ -1,6 +1,6 @@
 """Reproducible read-only source benchmark; mutations only in a disposable snapshot.
 
-Run from repository root with PYTHONPATH=. See docs/performance/translation-cards.md.
+Run from repository root with PYTHONPATH=. See docs/translation-cards-format-performance.md.
 Output includes full executionStats, timings and exact functional comparisons.
 """
 import argparse
@@ -101,6 +101,14 @@ def main():
         ])
         scenarios = [
             ("initial", {}), ("offset_10000", {"offset": 10000}),
+            ("filtered_initial", {"format": "standard,modern,pioneer,legacy,commander",
+                                  "legality": "legal,restricted"}),
+            ("filtered_offset_10000", {"format": "standard,modern,pioneer,legacy,commander",
+                                       "offset": 10000}),
+            ("filtered_after_end", {"format": "standard,modern,pioneer,legacy,commander",
+                                    "offset": 100000}),
+            ("filtered_name", {"format": "standard,modern,pioneer,legacy,commander",
+                               "name": "dragon"}),
             ("after_end", {"offset": 100000}),
             ("name", {"name": "dragon"}),
             ("no_name_match", {"name": "__no_matching_card_95731__"}),

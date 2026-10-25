@@ -90,7 +90,9 @@ async def list_translations(
     "/cards", response_model=TranslationCardsPage,
     summary="List original local cards by translation existence",
     description="Combines category, literal original-name search and translation existence before "
-    "pagination. Returns English CardResponse objects without legality restrictions. "
+    "pagination. Optional format/legality filters match any selected status in a selected format; "
+    "format alone defaults to legal,restricted. Accessories reject both. Without these filters, "
+    "catalog scope is unchanged. Returns complete English CardResponse objects. "
     "Presence means "
     "a record exists for the requested language, regardless of its usability. Sorts by original "
     "name then oracle_id using binary comparison. Local read only.",
