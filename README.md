@@ -178,6 +178,94 @@ Ao executar o script fora do Docker, configure uma URI acessível pelo host:
 MONGODB_URI=mongodb://localhost:27017 python sync_scryfall.py
 ```
 
+## Integrações desacopladas
+
+O catálogo Oracle é consultado localmente, mas a integração com o Scryfall ainda possui dependências e riscos de consistência. Os itens a seguir precisam ser revisados no futuro.
+
+### Resolução persistente de impressões
+
+- **Pilar afetado:** Dependência Scryfall.
+- **Severidade:** Alta.
+- **Localização:** `CardSearchService.resolve`, em `app/service.py`;
+  `ScryfallClient.get_by_ids`, em `app/scryfall.py`; e `flush_batch`, em
+  `sync_scryfall.py`.
+
+**Comportamento atual e risco:** `oracle_cards` mantém somente a impressão
+representante de cada `oracle_id`. Em `POST /cards/resolve`, impressões ausentes
+são consultadas online, mas o resultado não é persistido. Repetir a consulta pode
+exigir novamente o Scryfall. Quando a impressão representante muda durante o
+sincronismo, o ID anterior também deixa de ser resolvido por esse documento local.
+Uma indisponibilidade do fornecedor impede resolver essas impressões, mesmo quando
+a carta Oracle correspondente já está no catálogo. Buscas e consultas por Oracle ID
+continuam funcionando com os dados locais.
+
+**Correção proposta:** manter uma coleção independente de impressões, com índice
+único em `printing_id` e vínculo com `oracle_id`. Persistir resoluções bem-sucedidas
+e consultar esse armazenamento antes de acessar o fornecedor. Para ampliar a
+cobertura offline, importar os dados das impressões necessárias ao produto. Uma
+resolução sob demanda não deve substituir a impressão representante em
+`oracle_cards`, e a troca dessa representante não deve apagar mapeamentos anteriores.
+
+**Validação e manutenção:** testar resolução repetida sem nova chamada externa,
+preservação do ID anterior após troca da representante e resolução offline de
+impressões já armazenadas. Monitorar a proporção de resoluções locais e externas e
+atualizar a cobertura de impressões conforme novas coleções forem incorporadas.
+
+### Publicação de snapshots validados
+
+- **Pilar afetado:** Dependência Scryfall / Resiliência.
+- **Severidade:** Alta.
+- **Localização:** `prepare_card_document`, `flush_batch` e `sync_cards`, em
+  `sync_scryfall.py`; contrato de leitura `CardResponse`, em `app/schemas.py`.
+
+**Comportamento atual e risco:** a preparação verifica apenas se `id` e `oracle_id`
+são strings. Os lotes são gravados diretamente na coleção usada pela API. Um erro de
+parsing no meio do arquivo ou uma falha de escrita pode deixar uma mistura de versões
+do catálogo. Campos incompatíveis podem ser aceitos na ingestão e causar erro somente
+quando a API validar a resposta. O processamento incremental limita o consumo de
+memória, mas não garante publicação consistente do conjunto completo.
+
+**Correção proposta:** ingerir cada snapshot em uma coleção ou versão de preparação,
+sem alterar o catálogo ativo. Validar o contrato de dados, a unicidade dos IDs, as
+contagens e amostras representativas, incluindo cartas multiface e legalidades.
+Ativar a nova versão somente após a validação integral, por um mecanismo de troca
+atômica compatível com a implantação. Conservar a versão anterior para rollback e
+impedir que sincronizações concorrentes publiquem versões fora de ordem. As
+traduções próprias devem continuar separadas dos dados oficiais.
+
+**Validação e manutenção:** a cada ingestão, registrar versão e horário da fonte,
+início e fim da execução, contagens processadas/rejeitadas e resultado da validação.
+Testar arquivo truncado, campos incompatíveis, falha em lote intermediário e execuções
+concorrentes, garantindo que a versão ativa permaneça utilizável. Exercitar rollback
+periodicamente e alertar quando uma importação não puder ser publicada.
+
+### Reconciliação de campos e cartas removidos
+
+- **Pilar afetado:** Dependência Scryfall / Regras de MTG.
+- **Severidade:** Média.
+- **Localização:** `flush_batch`, em `sync_scryfall.py`, especialmente o uso de
+  `UpdateOne` com `$set`.
+
+**Comportamento atual e risco:** `$set` atualiza os campos enviados, mas não remove
+campos de primeiro nível omitidos no novo documento. Por exemplo, `card_faces`
+antigo pode permanecer se esse campo deixar de existir na origem. Cartas ausentes
+do novo arquivo também não são reconciliadas. O catálogo pode, assim, conservar
+estruturas antigas que não correspondem ao snapshot recebido, afetando consultas e
+validação de traduções multiface.
+
+**Correção proposta:** substituir integralmente os documentos oficiais após a
+validação do snapshot ou calcular explicitamente os campos a remover. Preservar a
+identidade local por `oracle_id`. Reconciliar cartas ausentes somente após confirmar
+que o arquivo inteiro é válido e completo; uma importação parcial não deve provocar
+exclusões. Quando houver referências ou traduções associadas, usar marcação de
+inatividade (tombstone) ou histórico, com política explícita de consulta e retenção,
+em vez de remover esses vínculos automaticamente.
+
+**Validação e manutenção:** comparar snapshots e revisar diferenças de campos e
+cartas removidos a cada publicação. Testar remoção de `card_faces`, ausência de uma
+carta no snapshot completo e preservação das traduções. Revalidar a compatibilidade
+das traduções quando a estrutura oficial mudar, sem sobrescrever seu conteúdo.
+
 ## API
 
 ### Acesso público e contrato de cartas
